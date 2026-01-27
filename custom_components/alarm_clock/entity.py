@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
 
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
     from .state_machine import AlarmStateMachine
 
 
-class AlarmClockEntity(Entity, RestoreEntity):
+class AlarmClockEntity(Entity):
     """Base class for alarm clock entities."""
 
     _attr_has_entity_name = True
