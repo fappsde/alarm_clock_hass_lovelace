@@ -82,6 +82,7 @@ class AlarmClockCoordinator:
         self._health_check_callback: CALLBACK_TYPE | None = None
 
         self._update_callbacks: list[callback] = []
+        self._entity_adder_callbacks: list[callable] = []
         self._running = False
         self._health_status: dict[str, Any] = {
             "healthy": True,
@@ -214,6 +215,7 @@ class AlarmClockCoordinator:
         """Add a new alarm."""
         await self.store.async_add_alarm(alarm_data)
         await self._async_setup_alarm(alarm_data)
+        self._notify_entity_adders(alarm_data.alarm_id)
         self._notify_update()
         _LOGGER.info("Added new alarm: %s", alarm_data.alarm_id)
 
@@ -1110,6 +1112,10 @@ class AlarmClockCoordinator:
 
         return remove_callback
 
+    def register_entity_adder_callback(self, callback: callable) -> None:
+        """Register a callback for when new alarms are added."""
+        self._entity_adder_callbacks.append(callback)
+
     def _notify_update(self) -> None:
         """Notify all registered callbacks of an update."""
         for update_callback in self._update_callbacks:
@@ -1117,6 +1123,14 @@ class AlarmClockCoordinator:
                 update_callback()
             except Exception:
                 _LOGGER.exception("Error in update callback")
+
+    def _notify_entity_adders(self, alarm_id: str) -> None:
+        """Notify all entity adder callbacks of a new alarm."""
+        for adder_callback in self._entity_adder_callbacks:
+            try:
+                adder_callback(alarm_id)
+            except Exception:
+                _LOGGER.exception("Error in entity adder callback")
 
     async def async_register_services(self) -> None:
         """Register services."""
@@ -1242,34 +1256,43 @@ class AlarmClockCoordinator:
             alarm_id = call.data[CONF_ALARM_ID]
             await self.async_remove_alarm(alarm_id)
 
-        # Register services
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_SNOOZE, handle_snooze, schema=snooze_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_DISMISS, handle_dismiss, schema=entity_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_SKIP_NEXT, handle_skip_next, schema=entity_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_CANCEL_SKIP, handle_cancel_skip, schema=entity_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_TEST_ALARM, handle_test_alarm, schema=entity_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_SET_TIME, handle_set_time, schema=set_time_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_SET_DAYS, handle_set_days, schema=set_days_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_CREATE_ALARM, handle_create_alarm, schema=create_alarm_schema
-        )
-        self.hass.services.async_register(
-            DOMAIN, SERVICE_DELETE_ALARM, handle_delete_alarm, schema=delete_alarm_schema
-        )
+        # Register services (only if not already registered)
+        if not self.hass.services.has_service(DOMAIN, SERVICE_SNOOZE):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_SNOOZE, handle_snooze, schema=snooze_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_DISMISS):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_DISMISS, handle_dismiss, schema=entity_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_SKIP_NEXT):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_SKIP_NEXT, handle_skip_next, schema=entity_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_CANCEL_SKIP):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_CANCEL_SKIP, handle_cancel_skip, schema=entity_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_TEST_ALARM):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_TEST_ALARM, handle_test_alarm, schema=entity_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_SET_TIME):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_SET_TIME, handle_set_time, schema=set_time_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_SET_DAYS):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_SET_DAYS, handle_set_days, schema=set_days_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_CREATE_ALARM):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_CREATE_ALARM, handle_create_alarm, schema=create_alarm_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_DELETE_ALARM):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_DELETE_ALARM, handle_delete_alarm, schema=delete_alarm_schema
+            )
 
         _LOGGER.debug("Registered alarm clock services")
 
