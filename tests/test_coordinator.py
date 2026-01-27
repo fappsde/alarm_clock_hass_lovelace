@@ -42,9 +42,12 @@ class TestAlarmClockCoordinator:
     @pytest.fixture
     def mock_store(self):
         """Create a mock store."""
+        from unittest.mock import Mock
+
         store = AsyncMock()
-        store.get_all_alarms.return_value = []
-        store.get_runtime_state.return_value = None
+        # Synchronous methods should use Mock, not AsyncMock
+        store.get_all_alarms = Mock(return_value=[])
+        store.get_runtime_state = Mock(return_value=None)
         store.settings = {}
         store.async_add_alarm = AsyncMock()
         store.async_update_alarm = AsyncMock()
@@ -327,11 +330,14 @@ class TestCalculateNextTrigger:
     @pytest.fixture
     def coordinator(self):
         """Create a coordinator for testing."""
+        from unittest.mock import Mock
+
         hass = MagicMock()
         entry = MagicMock()
         entry.entry_id = "test"
         store = AsyncMock()
-        store.get_all_alarms.return_value = []
+        # Synchronous methods should use Mock, not AsyncMock
+        store.get_all_alarms = Mock(return_value=[])
         return AlarmClockCoordinator(hass, entry, store)
 
     def test_calculate_next_trigger_weekday(self, coordinator):
@@ -397,13 +403,16 @@ class TestScriptExecution:
     @pytest.fixture
     def coordinator(self):
         """Create a coordinator for testing."""
+        from unittest.mock import Mock
+
         hass = MagicMock()
         hass.services = MagicMock()
         hass.services.async_call = AsyncMock()
         entry = MagicMock()
         entry.entry_id = "test"
         store = AsyncMock()
-        store.get_all_alarms.return_value = []
+        # Synchronous methods should use Mock, not AsyncMock
+        store.get_all_alarms = Mock(return_value=[])
         return AlarmClockCoordinator(hass, entry, store)
 
     @pytest.mark.asyncio
