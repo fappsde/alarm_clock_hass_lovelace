@@ -97,13 +97,18 @@ def mock_alarm_data_one_time() -> AlarmData:
 @pytest.fixture
 def mock_store(hass: HomeAssistant, mock_config_entry: ConfigEntry) -> AsyncMock:
     """Create a mock store."""
+    from unittest.mock import Mock
+
     store = AsyncMock(spec=AlarmClockStore)
     store.alarms = {}
     store.runtime_states = {}
     store.settings = {}
-    store.get_all_alarms.return_value = []
-    store.get_alarm.return_value = None
-    store.get_runtime_state.return_value = None
+
+    # Synchronous methods should use Mock, not AsyncMock
+    store.get_all_alarms = Mock(return_value=[])
+    store.get_alarm = Mock(return_value=None)
+    store.get_runtime_state = Mock(return_value=None)
+
     return store
 
 
