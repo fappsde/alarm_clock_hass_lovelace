@@ -33,6 +33,14 @@ class TestAlarmClockCoordinator:
         hass.loop = asyncio.get_event_loop()
         return hass
 
+    @pytest.fixture(autouse=True)
+    def mock_track_point_in_time(self):
+        """Mock async_track_point_in_time to prevent real timers."""
+        with patch('custom_components.alarm_clock.coordinator.async_track_point_in_time') as mock_track:
+            # Return a mock cancel callback
+            mock_track.return_value = MagicMock()
+            yield mock_track
+
     @pytest.fixture
     def mock_entry(self):
         """Create a mock config entry."""
@@ -58,9 +66,13 @@ class TestAlarmClockCoordinator:
         return store
 
     @pytest.fixture
-    def coordinator(self, mock_hass, mock_entry, mock_store):
+    async def coordinator(self, mock_hass, mock_entry, mock_store):
         """Create a coordinator for testing."""
-        return AlarmClockCoordinator(mock_hass, mock_entry, mock_store)
+        coord = AlarmClockCoordinator(mock_hass, mock_entry, mock_store)
+        yield coord
+        # Cleanup: stop coordinator to cancel all timers
+        if coord._running:
+            await coord.async_stop()
 
     @pytest.fixture
     def alarm_data(self):
