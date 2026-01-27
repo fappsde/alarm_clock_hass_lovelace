@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -81,8 +82,8 @@ class AlarmClockCoordinator:
         self._pre_alarm_callbacks: dict[str, CALLBACK_TYPE | None] = {}
         self._health_check_callback: CALLBACK_TYPE | None = None
 
-        self._update_callbacks: list[callback] = []
-        self._entity_adder_callbacks: list[callable] = []
+        self._update_callbacks: list[Callable] = []
+        self._entity_adder_callbacks: list[Callable[[str], None]] = []
         self._running = False
         self._health_status: dict[str, Any] = {
             "healthy": True,
@@ -1102,7 +1103,7 @@ class AlarmClockCoordinator:
             if callback:
                 callback()
 
-    def register_update_callback(self, callback: callable) -> callable:
+    def register_update_callback(self, callback: Callable) -> Callable:
         """Register a callback for updates."""
         self._update_callbacks.append(callback)
 
@@ -1112,7 +1113,7 @@ class AlarmClockCoordinator:
 
         return remove_callback
 
-    def register_entity_adder_callback(self, callback: callable) -> None:
+    def register_entity_adder_callback(self, callback: Callable[[str], None]) -> None:
         """Register a callback for when new alarms are added."""
         self._entity_adder_callbacks.append(callback)
 
