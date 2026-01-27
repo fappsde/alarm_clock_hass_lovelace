@@ -85,11 +85,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: HACS Validation
-        uses: hacs/action@main
-        with:
-          category: integration
-
       - name: Hassfest Validation
         uses: home-assistant/actions/hassfest@master
 

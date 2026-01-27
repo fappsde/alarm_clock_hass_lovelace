@@ -16,18 +16,11 @@ permissions:
   pull-requests: read
 
 jobs:
-  validate-hacs:
-    runs-on: ubuntu-latest
-    name: HACS Validation
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: HACS Validation
-        uses: hacs/action@main
-        with:
-          category: integration
-          ignore: brands
+  # Note: HACS validation requires GitHub repository settings (description, topics)
+  # to be configured in the repository settings. These cannot be set via code.
+  # Required settings:
+  # - Repository description: Set in GitHub repo settings
+  # - Repository topics: Add 'home-assistant' and 'hacs' in GitHub repo settings
 
   validate-hassfest:
     runs-on: ubuntu-latest
