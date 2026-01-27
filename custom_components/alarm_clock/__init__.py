@@ -37,42 +37,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Alarm Clock from a config entry."""
     _LOGGER.debug("Setting up Alarm Clock integration: %s", entry.entry_id)
 
-    # Initialize store for persistent data
-    store = AlarmClockStore(hass, entry)
-    await store.async_load()
+    try:
+        # Initialize store for persistent data
+        store = AlarmClockStore(hass, entry)
+        await store.async_load()
 
-    # Create coordinator
-    coordinator = AlarmClockCoordinator(hass, entry, store)
+        # Create coordinator
+        coordinator = AlarmClockCoordinator(hass, entry, store)
 
-    # Validate referenced entities on startup
-    await coordinator.async_validate_entities()
+        # Store coordinator
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # Store coordinator
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+        # Register device
+        device_registry = dr.async_get(hass)
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=entry.title or "Alarm Clock",
+            manufacturer="Custom Integration",
+            model="Smart Alarm Clock",
+            sw_version="1.0.0",
+        )
 
-    # Register device
-    device_registry = dr.async_get(hass)
-    device_registry.async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, entry.entry_id)},
-        name=entry.title or "Alarm Clock",
-        manufacturer="Custom Integration",
-        model="Smart Alarm Clock",
-        sw_version="1.0.0",
-    )
+        # Setup platforms
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Setup platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        # Start the coordinator scheduler
+        await coordinator.async_start()
 
-    # Start the coordinator scheduler
-    await coordinator.async_start()
+        # Validate referenced entities after startup
+        await coordinator.async_validate_entities()
 
-    # Register services
-    await coordinator.async_register_services()
+        # Register services
+        await coordinator.async_register_services()
 
-    _LOGGER.info("Alarm Clock integration setup complete: %s", entry.entry_id)
-    return True
+        _LOGGER.info("Alarm Clock integration setup complete: %s", entry.entry_id)
+        return True
+
+    except Exception as err:
+        _LOGGER.exception("Error setting up Alarm Clock integration: %s", err)
+        # Clean up if setup fails
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN].pop(entry.entry_id)
+        return False
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
