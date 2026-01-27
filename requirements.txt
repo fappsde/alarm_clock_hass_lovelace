@@ -1,0 +1,4 @@
+# Runtime dependencies are managed by Home Assistant
+# This file is for development and CI/CD tooling
+
+homeassistant>=2024.1.0
