@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   release:
@@ -11,6 +12,7 @@ jobs:
     name: Create Release
     permissions:
       contents: write
+      pull-requests: read
 
     steps:
       - name: Checkout
