@@ -10,6 +10,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.alarm_clock.const import DOMAIN
 from custom_components.alarm_clock.coordinator import AlarmClockCoordinator
@@ -28,7 +29,7 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 @pytest.fixture
 def mock_config_entry() -> ConfigEntry:
     """Create a mock config entry."""
-    return ConfigEntry(
+    return MockConfigEntry(
         version=1,
         minor_version=1,
         domain=DOMAIN,
@@ -37,8 +38,6 @@ def mock_config_entry() -> ConfigEntry:
         source="user",
         entry_id="test_entry_id",
         unique_id="test_unique_id",
-        options={},
-        discovery_keys={},
     )
 
 
