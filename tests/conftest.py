@@ -37,6 +37,8 @@ def mock_config_entry() -> ConfigEntry:
         source="user",
         entry_id="test_entry_id",
         unique_id="test_unique_id",
+        discovery_keys={},
+        options={},
     )
 
 
