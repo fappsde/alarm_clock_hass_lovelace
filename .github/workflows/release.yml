@@ -53,7 +53,7 @@ jobs:
           zip -r ../alarm_clock.zip alarm_clock
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
