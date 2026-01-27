@@ -47,6 +47,15 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
+    # Register callback for dynamically adding entities when new alarms are created
+    coordinator.register_entity_adder_callback(
+        lambda alarm_id: async_add_entities([
+            AlarmStateSensor(coordinator, entry, coordinator.alarms[alarm_id]),
+            AlarmNextTriggerSensor(coordinator, entry, coordinator.alarms[alarm_id]),
+            AlarmSnoozeCountSensor(coordinator, entry, coordinator.alarms[alarm_id]),
+        ])
+    )
+
 
 class AlarmStateSensor(AlarmClockEntity, SensorEntity):
     """Sensor showing the current state of an alarm."""

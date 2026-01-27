@@ -40,21 +40,13 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
-    # Set up listener for new alarms
-    @callback
-    def async_add_alarm(alarm_id: str) -> None:
-        """Add entities for a new alarm."""
-        if alarm_id in coordinator.alarms:
-            alarm = coordinator.alarms[alarm_id]
-            async_add_entities(
-                [
-                    AlarmEnableSwitch(coordinator, entry, alarm),
-                    AlarmSkipNextSwitch(coordinator, entry, alarm),
-                ]
-            )
-
-    # Register callback for new alarms (future enhancement)
-    # coordinator.register_new_alarm_callback(async_add_alarm)
+    # Register callback for dynamically adding entities when new alarms are created
+    coordinator.register_entity_adder_callback(
+        lambda alarm_id: async_add_entities([
+            AlarmEnableSwitch(coordinator, entry, coordinator.alarms[alarm_id]),
+            AlarmSkipNextSwitch(coordinator, entry, coordinator.alarms[alarm_id]),
+        ])
+    )
 
 
 class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):

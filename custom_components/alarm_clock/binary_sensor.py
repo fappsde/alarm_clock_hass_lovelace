@@ -43,6 +43,13 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
+    # Register callback for dynamically adding entities when new alarms are created
+    coordinator.register_entity_adder_callback(
+        lambda alarm_id: async_add_entities([
+            AlarmRingingSensor(coordinator, entry, coordinator.alarms[alarm_id]),
+        ])
+    )
+
 
 class AlarmRingingSensor(AlarmClockEntity, BinarySensorEntity):
     """Binary sensor that is on when alarm is ringing."""

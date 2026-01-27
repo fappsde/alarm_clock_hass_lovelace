@@ -37,6 +37,13 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
+    # Register callback for dynamically adding entities when new alarms are created
+    coordinator.register_entity_adder_callback(
+        lambda alarm_id: async_add_entities([
+            AlarmTimeEntity(coordinator, entry, coordinator.alarms[alarm_id]),
+        ])
+    )
+
 
 class AlarmTimeEntity(AlarmClockEntity, TimeEntity):
     """Time entity for setting alarm time."""
