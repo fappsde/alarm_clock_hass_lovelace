@@ -1,9 +1,10 @@
 """Sensor entities for Alarm Clock integration."""
+
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -35,7 +36,7 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
 
     # Create state and next trigger sensors for each alarm
-    for alarm_id, alarm in coordinator.alarms.items():
+    for _alarm_id, alarm in coordinator.alarms.items():
         entities.append(AlarmStateSensor(coordinator, entry, alarm))
         entities.append(AlarmNextTriggerSensor(coordinator, entry, alarm))
         entities.append(AlarmSnoozeCountSensor(coordinator, entry, alarm))
@@ -87,9 +88,7 @@ class AlarmStateSensor(AlarmClockEntity, SensorEntity):
             "enabled": self.alarm.data.enabled,
             "trigger_type": self.alarm.current_trigger_type,
             "ringing_start_time": (
-                self.alarm.ringing_start_time.isoformat()
-                if self.alarm.ringing_start_time
-                else None
+                self.alarm.ringing_start_time.isoformat() if self.alarm.ringing_start_time else None
             ),
         }
 
@@ -152,14 +151,10 @@ class AlarmSnoozeCountSensor(AlarmClockEntity, SensorEntity):
         """Return extra state attributes."""
         return {
             "max_snooze_count": self.alarm.data.max_snooze_count,
-            "snoozes_remaining": max(
-                0, self.alarm.data.max_snooze_count - self.alarm.snooze_count
-            ),
+            "snoozes_remaining": max(0, self.alarm.data.max_snooze_count - self.alarm.snooze_count),
             "snooze_duration": self.alarm.data.snooze_duration,
             "snooze_end_time": (
-                self.alarm.snooze_end_time.isoformat()
-                if self.alarm.snooze_end_time
-                else None
+                self.alarm.snooze_end_time.isoformat() if self.alarm.snooze_end_time else None
             ),
         }
 
@@ -200,9 +195,7 @@ class NextAlarmSensor(AlarmClockDeviceEntity, SensorEntity):
 
         attrs: dict[str, Any] = {
             "total_alarms": len(self.coordinator.alarms),
-            "enabled_alarms": sum(
-                1 for a in self.coordinator.alarms.values() if a.data.enabled
-            ),
+            "enabled_alarms": sum(1 for a in self.coordinator.alarms.values() if a.data.enabled),
         }
 
         if next_alarm:
@@ -257,16 +250,13 @@ class ActiveAlarmCountSensor(AlarmClockDeviceEntity, SensorEntity):
 
         return {
             "ringing": sum(
-                1 for a in self.coordinator.alarms.values()
-                if a.state == AlarmState.RINGING
+                1 for a in self.coordinator.alarms.values() if a.state == AlarmState.RINGING
             ),
             "snoozed": sum(
-                1 for a in self.coordinator.alarms.values()
-                if a.state == AlarmState.SNOOZED
+                1 for a in self.coordinator.alarms.values() if a.state == AlarmState.SNOOZED
             ),
             "pre_alarm": sum(
-                1 for a in self.coordinator.alarms.values()
-                if a.state == AlarmState.PRE_ALARM
+                1 for a in self.coordinator.alarms.values() if a.state == AlarmState.PRE_ALARM
             ),
             "active_alarms": active_alarms,
         }

@@ -1,17 +1,16 @@
 """Tests for the alarm clock state machine."""
+
 from __future__ import annotations
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
-from datetime import datetime
+from unittest.mock import MagicMock
 
+import pytest
+
+from custom_components.alarm_clock.const import VALID_STATE_TRANSITIONS, AlarmState
 from custom_components.alarm_clock.state_machine import (
     AlarmData,
     AlarmStateMachine,
-    AlarmRuntimeState,
-    InvalidStateTransitionError,
 )
-from custom_components.alarm_clock.const import AlarmState, VALID_STATE_TRANSITIONS
 
 
 class TestAlarmData:

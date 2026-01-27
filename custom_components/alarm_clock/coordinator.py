@@ -1,4 +1,5 @@
 """Coordinator for Alarm Clock integration."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,18 +7,16 @@ import logging
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import CALLBACK_TYPE, ServiceCall, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_point_in_time
-import homeassistant.helpers.config_validation as cv
 from homeassistant.util import dt as dt_util
 
 from .const import (
     ATTR_ALARM_ID,
-    ATTR_ALARM_NAME,
     ATTR_ALARM_TIME,
     ATTR_DAYS,
     ATTR_DURATION,
@@ -31,8 +30,6 @@ from .const import (
     CONF_ONE_TIME,
     CONF_SNOOZE_DURATION,
     DEFAULT_MISSED_ALARM_GRACE_PERIOD,
-    DEFAULT_SCRIPT_RETRY_COUNT,
-    DEFAULT_SCRIPT_TIMEOUT,
     DEFAULT_SNOOZE_DURATION,
     DOMAIN,
     HEALTH_CHECK_INTERVAL,
@@ -51,7 +48,6 @@ from .const import (
     WEEKDAYS,
     AlarmEvent,
     AlarmState,
-    MissedAlarmAction,
 )
 from .state_machine import AlarmData, AlarmStateMachine
 
@@ -156,9 +152,7 @@ class AlarmClockCoordinator:
 
         # Save runtime states
         for alarm_id, alarm in self._alarms.items():
-            await self.store.async_save_runtime_state(
-                alarm_id, alarm.to_restore_data()
-            )
+            await self.store.async_save_runtime_state(alarm_id, alarm.to_restore_data())
 
         _LOGGER.info("Alarm clock coordinator stopped")
 
@@ -375,9 +369,7 @@ class AlarmClockCoordinator:
 
         await self._async_trigger_alarm(alarm_id, TRIGGER_SCHEDULED)
 
-    async def _async_trigger_alarm(
-        self, alarm_id: str, trigger_type: str
-    ) -> None:
+    async def _async_trigger_alarm(self, alarm_id: str, trigger_type: str) -> None:
         """Trigger an alarm."""
         if alarm_id not in self._alarms:
             return
@@ -405,9 +397,7 @@ class AlarmClockCoordinator:
         )
 
         # Schedule auto-dismiss
-        auto_dismiss_time = dt_util.now() + timedelta(
-            minutes=alarm.data.auto_dismiss_timeout
-        )
+        auto_dismiss_time = dt_util.now() + timedelta(minutes=alarm.data.auto_dismiss_timeout)
         self._schedule_auto_dismiss(alarm_id, auto_dismiss_time)
 
         self._notify_update()
@@ -527,9 +517,7 @@ class AlarmClockCoordinator:
 
         self._notify_update()
 
-    async def async_snooze(
-        self, alarm_id: str, duration_minutes: int | None = None
-    ) -> bool:
+    async def async_snooze(self, alarm_id: str, duration_minutes: int | None = None) -> bool:
         """Snooze an alarm."""
         if alarm_id not in self._alarms:
             return False
@@ -847,7 +835,7 @@ class AlarmClockCoordinator:
                 )
                 return True
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.warning(
                     "Timeout executing %s script %s for alarm %s (attempt %d/%d)",
                     script_type,
@@ -870,7 +858,7 @@ class AlarmClockCoordinator:
 
             # Exponential backoff
             if attempt < max_retries - 1:
-                backoff = 2 ** attempt
+                backoff = 2**attempt
                 await asyncio.sleep(backoff)
 
         # All retries failed
@@ -979,19 +967,13 @@ class AlarmClockCoordinator:
                 self._schedule_alarm(alarm_id)
 
             # Snoozed without callback
-            if (
-                alarm.state == AlarmState.SNOOZED
-                and alarm_id not in self._snooze_callbacks
-            ):
+            if alarm.state == AlarmState.SNOOZED and alarm_id not in self._snooze_callbacks:
                 issues.append(f"Alarm {alarm_id} is snoozed but no wake callback")
                 # Try to fix by re-triggering
                 await self._async_trigger_alarm(alarm_id, TRIGGER_SCHEDULED)
 
             # Ringing without auto-dismiss
-            if (
-                alarm.state == AlarmState.RINGING
-                and alarm_id not in self._auto_dismiss_callbacks
-            ):
+            if alarm.state == AlarmState.RINGING and alarm_id not in self._auto_dismiss_callbacks:
                 issues.append(f"Alarm {alarm_id} is ringing but no auto-dismiss scheduled")
                 # Schedule auto-dismiss
                 auto_dismiss_time = dt_util.now() + timedelta(
@@ -1006,7 +988,8 @@ class AlarmClockCoordinator:
             "issues": issues,
             "alarm_count": len(self._alarms),
             "active_alarms": sum(
-                1 for a in self._alarms.values()
+                1
+                for a in self._alarms.values()
                 if a.state in (AlarmState.RINGING, AlarmState.SNOOZED)
             ),
         }
@@ -1064,8 +1047,7 @@ class AlarmClockCoordinator:
                 {
                     "message": "Some referenced scripts do not exist",
                     "missing_entities": [
-                        {"alarm_id": a, "field": f, "entity_id": e}
-                        for a, f, e in missing_entities
+                        {"alarm_id": a, "field": f, "entity_id": e} for a, f, e in missing_entities
                     ],
                 },
             )
@@ -1130,47 +1112,61 @@ class AlarmClockCoordinator:
 
     def _notify_update(self) -> None:
         """Notify all registered callbacks of an update."""
-        for callback in self._update_callbacks:
+        for update_callback in self._update_callbacks:
             try:
-                callback()
+                update_callback()
             except Exception:
                 _LOGGER.exception("Error in update callback")
 
     async def async_register_services(self) -> None:
         """Register services."""
         # Service schemas
-        snooze_schema = vol.Schema({
-            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
-            vol.Optional(ATTR_DURATION): vol.Coerce(int),
-        })
+        snooze_schema = vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+                vol.Optional(ATTR_DURATION): vol.Coerce(int),
+            }
+        )
 
-        entity_schema = vol.Schema({
-            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
-        })
+        entity_schema = vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            }
+        )
 
-        set_time_schema = vol.Schema({
-            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
-            vol.Required(ATTR_ALARM_TIME): cv.string,
-        })
+        set_time_schema = vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+                vol.Required(ATTR_ALARM_TIME): cv.string,
+            }
+        )
 
-        set_days_schema = vol.Schema({
-            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
-            vol.Required(ATTR_DAYS): vol.All(cv.ensure_list, [cv.string]),
-        })
+        set_days_schema = vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+                vol.Required(ATTR_DAYS): vol.All(cv.ensure_list, [cv.string]),
+            }
+        )
 
-        create_alarm_schema = vol.Schema({
-            vol.Required(CONF_ALARM_NAME): cv.string,
-            vol.Required(CONF_ALARM_TIME): cv.string,
-            vol.Optional(CONF_DAYS, default=WEEKDAYS[:5]): vol.All(cv.ensure_list, [cv.string]),
-            vol.Optional(CONF_ENABLED, default=True): cv.boolean,
-            vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
-            vol.Optional(CONF_SNOOZE_DURATION, default=DEFAULT_SNOOZE_DURATION): vol.Coerce(int),
-            vol.Optional(CONF_MAX_SNOOZE_COUNT, default=3): vol.Coerce(int),
-        })
+        create_alarm_schema = vol.Schema(
+            {
+                vol.Required(CONF_ALARM_NAME): cv.string,
+                vol.Required(CONF_ALARM_TIME): cv.string,
+                vol.Optional(CONF_DAYS, default=WEEKDAYS[:5]): vol.All(cv.ensure_list, [cv.string]),
+                vol.Optional(CONF_ENABLED, default=True): cv.boolean,
+                vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
+                vol.Optional(CONF_SNOOZE_DURATION, default=DEFAULT_SNOOZE_DURATION): vol.Coerce(
+                    int
+                ),
+                vol.Optional(CONF_MAX_SNOOZE_COUNT, default=3): vol.Coerce(int),
+            }
+        )
 
-        delete_alarm_schema = vol.Schema({
-            vol.Required(CONF_ALARM_ID): cv.string,
-        })
+        delete_alarm_schema = vol.Schema(
+            {
+                vol.Required(CONF_ALARM_ID): cv.string,
+            }
+        )
 
         async def handle_snooze(call: ServiceCall) -> None:
             """Handle snooze service call."""
@@ -1227,6 +1223,7 @@ class AlarmClockCoordinator:
         async def handle_create_alarm(call: ServiceCall) -> None:
             """Handle create alarm service call."""
             import uuid
+
             alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
             alarm_data = AlarmData(
                 alarm_id=alarm_id,

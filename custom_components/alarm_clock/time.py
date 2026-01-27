@@ -1,4 +1,5 @@
 """Time entities for Alarm Clock integration."""
+
 from __future__ import annotations
 
 import logging
@@ -31,7 +32,7 @@ async def async_setup_entry(
     entities = []
 
     # Create time entity for each alarm
-    for alarm_id, alarm in coordinator.alarms.items():
+    for _alarm_id, alarm in coordinator.alarms.items():
         entities.append(AlarmTimeEntity(coordinator, entry, alarm))
 
     async_add_entities(entities)

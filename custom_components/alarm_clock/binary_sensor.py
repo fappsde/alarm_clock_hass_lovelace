@@ -1,8 +1,9 @@
 """Binary sensor entities for Alarm Clock integration."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -33,7 +34,7 @@ async def async_setup_entry(
     entities: list[BinarySensorEntity] = []
 
     # Create ringing sensor for each alarm
-    for alarm_id, alarm in coordinator.alarms.items():
+    for _alarm_id, alarm in coordinator.alarms.items():
         entities.append(AlarmRingingSensor(coordinator, entry, alarm))
 
     # Create device-level sensors

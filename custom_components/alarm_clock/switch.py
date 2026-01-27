@@ -1,10 +1,11 @@
 """Switch entities for Alarm Clock integration."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.switch import SwitchEntity, SwitchDeviceClass
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.core import callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -31,7 +32,7 @@ async def async_setup_entry(
     entities = []
 
     # Create enable/disable switch for each alarm
-    for alarm_id, alarm in coordinator.alarms.items():
+    for _alarm_id, alarm in coordinator.alarms.items():
         entities.append(AlarmEnableSwitch(coordinator, entry, alarm))
 
         # Create skip next switch
@@ -45,10 +46,12 @@ async def async_setup_entry(
         """Add entities for a new alarm."""
         if alarm_id in coordinator.alarms:
             alarm = coordinator.alarms[alarm_id]
-            async_add_entities([
-                AlarmEnableSwitch(coordinator, entry, alarm),
-                AlarmSkipNextSwitch(coordinator, entry, alarm),
-            ])
+            async_add_entities(
+                [
+                    AlarmEnableSwitch(coordinator, entry, alarm),
+                    AlarmSkipNextSwitch(coordinator, entry, alarm),
+                ]
+            )
 
     # Register callback for new alarms (future enhancement)
     # coordinator.register_new_alarm_callback(async_add_alarm)
@@ -98,14 +101,10 @@ class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
             "snooze_count": self.alarm.snooze_count,
             "max_snooze_count": self.alarm.data.max_snooze_count,
             "next_trigger": (
-                self.alarm.next_trigger.isoformat()
-                if self.alarm.next_trigger
-                else None
+                self.alarm.next_trigger.isoformat() if self.alarm.next_trigger else None
             ),
             "snooze_end_time": (
-                self.alarm.snooze_end_time.isoformat()
-                if self.alarm.snooze_end_time
-                else None
+                self.alarm.snooze_end_time.isoformat() if self.alarm.snooze_end_time else None
             ),
         }
 

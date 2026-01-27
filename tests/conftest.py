@@ -1,20 +1,20 @@
 """Fixtures for Alarm Clock tests."""
+
 from __future__ import annotations
 
 from collections.abc import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import entity_registry as er
+from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from custom_components.alarm_clock.const import DOMAIN
+from custom_components.alarm_clock.coordinator import AlarmClockCoordinator
 from custom_components.alarm_clock.state_machine import AlarmData
 from custom_components.alarm_clock.store import AlarmClockStore
-from custom_components.alarm_clock.coordinator import AlarmClockCoordinator
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 

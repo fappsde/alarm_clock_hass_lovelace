@@ -1,16 +1,17 @@
 """Tests for the alarm clock coordinator."""
+
 from __future__ import annotations
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from custom_components.alarm_clock.const import TRIGGER_MANUAL_TEST, AlarmState
 from custom_components.alarm_clock.coordinator import AlarmClockCoordinator
 from custom_components.alarm_clock.state_machine import AlarmData, AlarmStateMachine
-from custom_components.alarm_clock.const import AlarmState, TRIGGER_SCHEDULED, TRIGGER_MANUAL_TEST
 
 
 class TestAlarmClockCoordinator:
@@ -414,13 +415,9 @@ class TestScriptExecution:
             time="07:00",
             script_alarm="script.test_script",
         )
-        coordinator._alarms["test"] = AlarmStateMachine(
-            coordinator.hass, alarm_data
-        )
+        coordinator._alarms["test"] = AlarmStateMachine(coordinator.hass, alarm_data)
 
-        result = await coordinator._async_execute_script(
-            "test", "script.test_script", "alarm"
-        )
+        result = await coordinator._async_execute_script("test", "script.test_script", "alarm")
 
         assert result is True
         coordinator.hass.services.async_call.assert_called()
@@ -428,9 +425,7 @@ class TestScriptExecution:
     @pytest.mark.asyncio
     async def test_execute_script_none(self, coordinator):
         """Test execution with no script configured."""
-        result = await coordinator._async_execute_script(
-            "test", None, "alarm"
-        )
+        result = await coordinator._async_execute_script("test", None, "alarm")
 
         assert result is True
         coordinator.hass.services.async_call.assert_not_called()
@@ -446,18 +441,14 @@ class TestScriptExecution:
             script_retry_count=3,
             script_timeout=1,
         )
-        coordinator._alarms["test"] = AlarmStateMachine(
-            coordinator.hass, alarm_data
-        )
+        coordinator._alarms["test"] = AlarmStateMachine(coordinator.hass, alarm_data)
 
         # Make first two calls fail, third succeed
         coordinator.hass.services.async_call = AsyncMock(
             side_effect=[Exception("Fail"), Exception("Fail"), None]
         )
 
-        result = await coordinator._async_execute_script(
-            "test", "script.test_script", "alarm"
-        )
+        result = await coordinator._async_execute_script("test", "script.test_script", "alarm")
 
         assert result is True
         assert coordinator.hass.services.async_call.call_count == 3
