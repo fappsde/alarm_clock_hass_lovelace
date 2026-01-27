@@ -1,0 +1,279 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Wecker",
+        "description": "Richten Sie eine Wecker-Instanz ein. Sie können nach der Einrichtung mehrere Alarme hinzufügen.",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "invalid_time": "Ungültiges Zeitformat. Verwenden Sie HH:MM."
+    },
+    "abort": {
+      "already_configured": "Dieser Wecker ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Wecker-Optionen",
+        "description": "Verwalten Sie Ihre Alarme und Einstellungen.",
+        "menu_options": {
+          "add_alarm": "Neuen Alarm hinzufügen",
+          "manage_alarms": "Bestehende Alarme verwalten",
+          "global_settings": "Globale Einstellungen"
+        }
+      },
+      "add_alarm": {
+        "title": "Neuen Alarm hinzufügen",
+        "description": "Konfigurieren Sie einen neuen Alarm.",
+        "data": {
+          "name": "Alarmname",
+          "time": "Alarmzeit",
+          "days": "Tage",
+          "one_time": "Einmaliger Alarm",
+          "enabled": "Aktiviert"
+        }
+      },
+      "alarm_advanced": {
+        "title": "Erweiterte Alarmeinstellungen",
+        "description": "Konfigurieren Sie erweiterte Einstellungen für den Alarm.",
+        "data": {
+          "snooze_duration": "Schlummerdauer (Minuten)",
+          "max_snooze_count": "Maximale Schlummeranzahl",
+          "auto_dismiss_timeout": "Automatische Abschaltung (Minuten)",
+          "pre_alarm_duration": "Voralarm-Dauer (Minuten)",
+          "script_pre_alarm": "Voralarm-Skript",
+          "script_alarm": "Alarm-Skript",
+          "script_post_alarm": "Nach-Alarm-Skript",
+          "script_on_snooze": "Schlummer-Skript",
+          "script_on_dismiss": "Abschalt-Skript",
+          "script_fallback": "Fallback-Skript"
+        }
+      },
+      "manage_alarms": {
+        "title": "Alarme verwalten",
+        "description": "Wählen Sie einen Alarm zur Verwaltung aus.",
+        "data": {
+          "alarm": "Alarm auswählen"
+        }
+      },
+      "alarm_actions": {
+        "title": "Alarm-Aktionen",
+        "description": "Wählen Sie eine Aktion für diesen Alarm.",
+        "data": {
+          "action": "Aktion"
+        }
+      },
+      "edit_alarm": {
+        "title": "Alarm bearbeiten",
+        "description": "Alarmeinstellungen ändern.",
+        "data": {
+          "name": "Alarmname",
+          "time": "Alarmzeit",
+          "days": "Tage",
+          "snooze_duration": "Schlummerdauer (Minuten)",
+          "max_snooze_count": "Maximale Schlummeranzahl",
+          "auto_dismiss_timeout": "Automatische Abschaltung (Minuten)",
+          "pre_alarm_duration": "Voralarm-Dauer (Minuten)"
+        }
+      },
+      "global_settings": {
+        "title": "Globale Einstellungen",
+        "description": "Konfigurieren Sie globale Wecker-Einstellungen.",
+        "data": {
+          "watchdog_timeout": "Watchdog-Timeout (Sekunden)",
+          "missed_alarm_grace_period": "Verpasster-Alarm-Karenzzeit (Minuten)"
+        }
+      }
+    },
+    "abort": {
+      "no_alarms": "Keine Alarme konfiguriert. Fügen Sie zuerst einen Alarm hinzu.",
+      "alarm_not_found": "Alarm nicht gefunden."
+    }
+  },
+  "entity": {
+    "switch": {
+      "alarm_enable": {
+        "name": "{name}"
+      },
+      "alarm_skip_next": {
+        "name": "{name} Nächsten überspringen"
+      }
+    },
+    "sensor": {
+      "alarm_state": {
+        "name": "{name} Status",
+        "state": {
+          "disabled": "Deaktiviert",
+          "armed": "Aktiv",
+          "pre_alarm": "Voralarm",
+          "ringing": "Klingelt",
+          "snoozed": "Schlummert",
+          "dismissed": "Abgeschaltet",
+          "auto_dismissed": "Automatisch abgeschaltet",
+          "missed": "Verpasst"
+        }
+      },
+      "alarm_next_trigger": {
+        "name": "{name} Nächste Auslösung"
+      },
+      "alarm_snooze_count": {
+        "name": "{name} Schlummeranzahl"
+      },
+      "next_alarm": {
+        "name": "Nächster Alarm"
+      },
+      "active_alarm_count": {
+        "name": "Aktive Alarme"
+      }
+    },
+    "binary_sensor": {
+      "alarm_ringing": {
+        "name": "{name} Klingelt"
+      },
+      "health": {
+        "name": "Gesundheit"
+      },
+      "any_alarm_ringing": {
+        "name": "Irgendein Alarm klingelt"
+      }
+    },
+    "time": {
+      "alarm_time": {
+        "name": "{name} Zeit"
+      }
+    }
+  },
+  "services": {
+    "snooze": {
+      "name": "Alarm schlummern",
+      "description": "Einen klingelnden Alarm schlummern lassen.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die zu schlummernde Alarm-Entität."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Schlummerdauer in Minuten."
+        }
+      }
+    },
+    "dismiss": {
+      "name": "Alarm abschalten",
+      "description": "Einen klingelnden oder schlummernden Alarm abschalten.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die abzuschaltende Alarm-Entität."
+        }
+      }
+    },
+    "skip_next": {
+      "name": "Nächstes Vorkommen überspringen",
+      "description": "Das nächste Vorkommen eines Alarms überspringen.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die zu überspringende Alarm-Entität."
+        }
+      }
+    },
+    "cancel_skip": {
+      "name": "Überspringen abbrechen",
+      "description": "Das Überspringen für das nächste Vorkommen abbrechen.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die Alarm-Entität."
+        }
+      }
+    },
+    "test_alarm": {
+      "name": "Alarm testen",
+      "description": "Einen Alarm zu Testzwecken auslösen.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die zu testende Alarm-Entität."
+        }
+      }
+    },
+    "set_time": {
+      "name": "Alarmzeit setzen",
+      "description": "Die Zeit für einen Alarm festlegen.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die Alarm-Entität."
+        },
+        "alarm_time": {
+          "name": "Zeit",
+          "description": "Die neue Alarmzeit."
+        }
+      }
+    },
+    "set_days": {
+      "name": "Alarmtage setzen",
+      "description": "Die Tage für einen Alarm festlegen.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Die Alarm-Entität."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Liste der Tage."
+        }
+      }
+    },
+    "create_alarm": {
+      "name": "Alarm erstellen",
+      "description": "Einen neuen Alarm erstellen.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Name für den Alarm."
+        },
+        "time": {
+          "name": "Zeit",
+          "description": "Alarmzeit."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Tage für den Alarm."
+        },
+        "enabled": {
+          "name": "Aktiviert",
+          "description": "Ob der Alarm aktiviert ist."
+        },
+        "one_time": {
+          "name": "Einmalig",
+          "description": "Ob dies ein einmaliger Alarm ist."
+        },
+        "snooze_duration": {
+          "name": "Schlummerdauer",
+          "description": "Schlummerdauer in Minuten."
+        },
+        "max_snooze_count": {
+          "name": "Maximale Schlummeranzahl",
+          "description": "Maximale Anzahl der Schlummervorgänge."
+        }
+      }
+    },
+    "delete_alarm": {
+      "name": "Alarm löschen",
+      "description": "Einen Alarm löschen.",
+      "fields": {
+        "alarm_id": {
+          "name": "Alarm-ID",
+          "description": "Die ID des zu löschenden Alarms."
+        }
+      }
+    }
+  }
+}

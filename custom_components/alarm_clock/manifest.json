@@ -1,0 +1,13 @@
+{
+  "domain": "alarm_clock",
+  "name": "Alarm Clock",
+  "codeowners": ["@fappsde"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/fappsde/alarm_clock_hass_lovelace",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/fappsde/alarm_clock_hass_lovelace/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

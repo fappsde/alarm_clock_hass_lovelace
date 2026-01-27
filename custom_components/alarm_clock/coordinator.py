@@ -1,0 +1,1285 @@
+"""Coordinator for Alarm Clock integration."""
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any
+
+import voluptuous as vol
+
+from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.core import CALLBACK_TYPE, ServiceCall, callback
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.event import async_track_point_in_time
+import homeassistant.helpers.config_validation as cv
+from homeassistant.util import dt as dt_util
+
+from .const import (
+    ATTR_ALARM_ID,
+    ATTR_ALARM_NAME,
+    ATTR_ALARM_TIME,
+    ATTR_DAYS,
+    ATTR_DURATION,
+    ATTR_ERROR_MESSAGE,
+    CONF_ALARM_ID,
+    CONF_ALARM_NAME,
+    CONF_ALARM_TIME,
+    CONF_DAYS,
+    CONF_ENABLED,
+    CONF_MAX_SNOOZE_COUNT,
+    CONF_ONE_TIME,
+    CONF_SNOOZE_DURATION,
+    DEFAULT_MISSED_ALARM_GRACE_PERIOD,
+    DEFAULT_SCRIPT_RETRY_COUNT,
+    DEFAULT_SCRIPT_TIMEOUT,
+    DEFAULT_SNOOZE_DURATION,
+    DOMAIN,
+    HEALTH_CHECK_INTERVAL,
+    SERVICE_CANCEL_SKIP,
+    SERVICE_CREATE_ALARM,
+    SERVICE_DELETE_ALARM,
+    SERVICE_DISMISS,
+    SERVICE_SET_DAYS,
+    SERVICE_SET_TIME,
+    SERVICE_SKIP_NEXT,
+    SERVICE_SNOOZE,
+    SERVICE_TEST_ALARM,
+    TRIGGER_MANUAL_TEST,
+    TRIGGER_MISSED_RECOVERY,
+    TRIGGER_SCHEDULED,
+    WEEKDAYS,
+    AlarmEvent,
+    AlarmState,
+    MissedAlarmAction,
+)
+from .state_machine import AlarmData, AlarmStateMachine
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+
+    from .store import AlarmClockStore
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class AlarmClockCoordinator:
+    """Coordinator for managing all alarms."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        store: AlarmClockStore,
+    ) -> None:
+        """Initialize the coordinator."""
+        self.hass = hass
+        self.entry = entry
+        self.store = store
+
+        self._alarms: dict[str, AlarmStateMachine] = {}
+        self._scheduled_callbacks: dict[str, CALLBACK_TYPE | None] = {}
+        self._snooze_callbacks: dict[str, CALLBACK_TYPE | None] = {}
+        self._auto_dismiss_callbacks: dict[str, CALLBACK_TYPE | None] = {}
+        self._pre_alarm_callbacks: dict[str, CALLBACK_TYPE | None] = {}
+        self._health_check_callback: CALLBACK_TYPE | None = None
+
+        self._update_callbacks: list[callback] = []
+        self._running = False
+        self._health_status: dict[str, Any] = {
+            "healthy": True,
+            "last_check": None,
+            "issues": [],
+        }
+
+        # Rate limiting for idempotent triggers
+        self._last_trigger_times: dict[str, datetime] = {}
+
+        # Watchdog for script execution
+        self._script_watchdog_tasks: dict[str, asyncio.Task] = {}
+
+    @property
+    def alarms(self) -> dict[str, AlarmStateMachine]:
+        """Get all alarms."""
+        return self._alarms
+
+    @property
+    def health_status(self) -> dict[str, Any]:
+        """Get health status."""
+        return self._health_status
+
+    async def async_start(self) -> None:
+        """Start the coordinator."""
+        _LOGGER.debug("Starting alarm clock coordinator")
+        self._running = True
+
+        # Load alarms from store
+        for alarm_data in self.store.get_all_alarms():
+            await self._async_setup_alarm(alarm_data)
+
+        # Check for missed alarms
+        await self._async_check_missed_alarms()
+
+        # Start health check
+        self._schedule_health_check()
+
+        _LOGGER.info("Alarm clock coordinator started with %d alarms", len(self._alarms))
+
+    async def async_stop(self) -> None:
+        """Stop the coordinator."""
+        _LOGGER.debug("Stopping alarm clock coordinator")
+        self._running = False
+
+        # Cancel all scheduled callbacks
+        for alarm_id in list(self._scheduled_callbacks.keys()):
+            self._cancel_scheduled_callback(alarm_id)
+
+        for alarm_id in list(self._snooze_callbacks.keys()):
+            self._cancel_snooze_callback(alarm_id)
+
+        for alarm_id in list(self._auto_dismiss_callbacks.keys()):
+            self._cancel_auto_dismiss_callback(alarm_id)
+
+        for alarm_id in list(self._pre_alarm_callbacks.keys()):
+            self._cancel_pre_alarm_callback(alarm_id)
+
+        # Cancel health check
+        if self._health_check_callback:
+            self._health_check_callback()
+            self._health_check_callback = None
+
+        # Cancel watchdog tasks
+        for task in self._script_watchdog_tasks.values():
+            task.cancel()
+        self._script_watchdog_tasks.clear()
+
+        # Save runtime states
+        for alarm_id, alarm in self._alarms.items():
+            await self.store.async_save_runtime_state(
+                alarm_id, alarm.to_restore_data()
+            )
+
+        _LOGGER.info("Alarm clock coordinator stopped")
+
+    async def _async_setup_alarm(self, alarm_data: AlarmData) -> None:
+        """Set up a single alarm."""
+        # Validate alarm data
+        errors = alarm_data.validate()
+        if errors:
+            _LOGGER.error(
+                "Invalid alarm data for %s: %s. Disabling alarm.",
+                alarm_data.alarm_id,
+                errors,
+            )
+            alarm_data.enabled = False
+            await self.store.async_update_alarm(alarm_data)
+            self._fire_event(
+                AlarmEvent.HEALTH_WARNING,
+                {
+                    ATTR_ALARM_ID: alarm_data.alarm_id,
+                    ATTR_ERROR_MESSAGE: f"Alarm disabled due to invalid data: {errors}",
+                },
+            )
+
+        # Create state machine
+        alarm = AlarmStateMachine(
+            self.hass,
+            alarm_data,
+            on_state_change=lambda old, new: self._on_alarm_state_change(
+                alarm_data.alarm_id, old, new
+            ),
+        )
+
+        # Restore runtime state if available
+        runtime_state = self.store.get_runtime_state(alarm_data.alarm_id)
+        if runtime_state:
+            alarm.restore_from_data(runtime_state)
+            _LOGGER.debug(
+                "Restored state for alarm %s: %s",
+                alarm_data.alarm_id,
+                alarm.state,
+            )
+
+        self._alarms[alarm_data.alarm_id] = alarm
+
+        # Schedule if armed
+        if alarm.state == AlarmState.ARMED:
+            self._schedule_alarm(alarm_data.alarm_id)
+
+        # Handle restored snooze state
+        if alarm.state == AlarmState.SNOOZED and alarm.snooze_end_time:
+            now = dt_util.now()
+            if alarm.snooze_end_time > now:
+                self._schedule_snooze_end(alarm_data.alarm_id, alarm.snooze_end_time)
+            else:
+                # Snooze expired, trigger alarm
+                await self._async_trigger_alarm(alarm_data.alarm_id, TRIGGER_SCHEDULED)
+
+    async def async_add_alarm(self, alarm_data: AlarmData) -> None:
+        """Add a new alarm."""
+        await self.store.async_add_alarm(alarm_data)
+        await self._async_setup_alarm(alarm_data)
+        self._notify_update()
+        _LOGGER.info("Added new alarm: %s", alarm_data.alarm_id)
+
+    async def async_update_alarm(self, alarm_data: AlarmData) -> None:
+        """Update an existing alarm."""
+        alarm_id = alarm_data.alarm_id
+
+        if alarm_id not in self._alarms:
+            _LOGGER.warning("Attempted to update non-existent alarm: %s", alarm_id)
+            return
+
+        old_alarm = self._alarms[alarm_id]
+        old_state = old_alarm.state
+
+        # Cancel existing schedules
+        self._cancel_scheduled_callback(alarm_id)
+
+        # Update store
+        await self.store.async_update_alarm(alarm_data)
+
+        # Update state machine
+        old_alarm.data = alarm_data
+
+        # Re-schedule if needed
+        if alarm_data.enabled and old_state in (AlarmState.ARMED, AlarmState.DISABLED):
+            await old_alarm.transition_to(AlarmState.ARMED)
+            self._schedule_alarm(alarm_id)
+        elif not alarm_data.enabled:
+            await old_alarm.transition_to(AlarmState.DISABLED)
+
+        self._notify_update()
+        _LOGGER.debug("Updated alarm: %s", alarm_id)
+
+    async def async_remove_alarm(self, alarm_id: str) -> bool:
+        """Remove an alarm."""
+        if alarm_id not in self._alarms:
+            return False
+
+        # Cancel all callbacks
+        self._cancel_scheduled_callback(alarm_id)
+        self._cancel_snooze_callback(alarm_id)
+        self._cancel_auto_dismiss_callback(alarm_id)
+        self._cancel_pre_alarm_callback(alarm_id)
+
+        # Remove from store
+        await self.store.async_remove_alarm(alarm_id)
+
+        # Remove from memory
+        del self._alarms[alarm_id]
+
+        self._notify_update()
+        _LOGGER.info("Removed alarm: %s", alarm_id)
+        return True
+
+    def _schedule_alarm(self, alarm_id: str) -> None:
+        """Schedule the next trigger for an alarm."""
+        if alarm_id not in self._alarms:
+            return
+
+        alarm = self._alarms[alarm_id]
+
+        if not alarm.data.enabled or alarm.data.skip_next:
+            alarm.next_trigger = None
+            return
+
+        # Calculate next trigger time
+        next_trigger = self._calculate_next_trigger(alarm.data)
+
+        if next_trigger is None:
+            alarm.next_trigger = None
+            return
+
+        alarm.next_trigger = next_trigger
+
+        # Schedule pre-alarm if configured
+        if alarm.data.pre_alarm_duration > 0:
+            pre_alarm_time = next_trigger - timedelta(minutes=alarm.data.pre_alarm_duration)
+            if pre_alarm_time > dt_util.now():
+                self._schedule_pre_alarm(alarm_id, pre_alarm_time)
+
+        # Cancel existing callback
+        self._cancel_scheduled_callback(alarm_id)
+
+        # Schedule new callback
+        self._scheduled_callbacks[alarm_id] = async_track_point_in_time(
+            self.hass,
+            lambda now, aid=alarm_id: self.hass.async_create_task(
+                self._async_handle_alarm_trigger(aid)
+            ),
+            next_trigger,
+        )
+
+        _LOGGER.debug(
+            "Scheduled alarm %s for %s",
+            alarm_id,
+            next_trigger.isoformat(),
+        )
+
+    def _calculate_next_trigger(self, alarm_data: AlarmData) -> datetime | None:
+        """Calculate the next trigger time for an alarm."""
+        now = dt_util.now()
+
+        # Parse alarm time
+        try:
+            hour, minute = map(int, alarm_data.time.split(":"))
+        except (ValueError, AttributeError):
+            _LOGGER.error("Invalid alarm time: %s", alarm_data.time)
+            return None
+
+        # Check each day starting from today
+        for days_ahead in range(8):  # Check up to 7 days ahead
+            check_date = now.date() + timedelta(days=days_ahead)
+            day_name = WEEKDAYS[check_date.weekday()]
+
+            if day_name not in [d.lower() for d in alarm_data.days]:
+                continue
+
+            trigger_time = dt_util.now().replace(
+                year=check_date.year,
+                month=check_date.month,
+                day=check_date.day,
+                hour=hour,
+                minute=minute,
+                second=0,
+                microsecond=0,
+            )
+
+            # If today, check if time hasn't passed
+            if days_ahead == 0 and trigger_time <= now:
+                continue
+
+            return trigger_time
+
+        return None
+
+    async def _async_handle_alarm_trigger(self, alarm_id: str) -> None:
+        """Handle alarm trigger."""
+        if alarm_id not in self._alarms:
+            return
+
+        # Idempotent check - prevent double triggers within same minute
+        now = dt_util.now()
+        last_trigger = self._last_trigger_times.get(alarm_id)
+        if last_trigger and (now - last_trigger).total_seconds() < 60:
+            _LOGGER.debug(
+                "Ignoring duplicate trigger for alarm %s (last trigger: %s)",
+                alarm_id,
+                last_trigger,
+            )
+            return
+
+        self._last_trigger_times[alarm_id] = now
+
+        await self._async_trigger_alarm(alarm_id, TRIGGER_SCHEDULED)
+
+    async def _async_trigger_alarm(
+        self, alarm_id: str, trigger_type: str
+    ) -> None:
+        """Trigger an alarm."""
+        if alarm_id not in self._alarms:
+            return
+
+        alarm = self._alarms[alarm_id]
+
+        # Transition to ringing
+        if not await alarm.transition_to(AlarmState.RINGING, trigger_type=trigger_type):
+            _LOGGER.warning(
+                "Failed to transition alarm %s to ringing state",
+                alarm_id,
+            )
+            return
+
+        _LOGGER.info("Alarm %s triggered (%s)", alarm_id, trigger_type)
+
+        # Fire event
+        self._fire_event(AlarmEvent.TRIGGERED, alarm.get_event_data())
+
+        # Execute alarm script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_alarm,
+            "alarm",
+        )
+
+        # Schedule auto-dismiss
+        auto_dismiss_time = dt_util.now() + timedelta(
+            minutes=alarm.data.auto_dismiss_timeout
+        )
+        self._schedule_auto_dismiss(alarm_id, auto_dismiss_time)
+
+        self._notify_update()
+
+    def _schedule_pre_alarm(self, alarm_id: str, trigger_time: datetime) -> None:
+        """Schedule pre-alarm callback."""
+        self._cancel_pre_alarm_callback(alarm_id)
+
+        self._pre_alarm_callbacks[alarm_id] = async_track_point_in_time(
+            self.hass,
+            lambda now, aid=alarm_id: self.hass.async_create_task(
+                self._async_handle_pre_alarm(aid)
+            ),
+            trigger_time,
+        )
+
+    async def _async_handle_pre_alarm(self, alarm_id: str) -> None:
+        """Handle pre-alarm trigger."""
+        if alarm_id not in self._alarms:
+            return
+
+        alarm = self._alarms[alarm_id]
+
+        if alarm.state != AlarmState.ARMED:
+            return
+
+        await alarm.transition_to(AlarmState.PRE_ALARM)
+
+        _LOGGER.debug("Pre-alarm triggered for %s", alarm_id)
+
+        # Fire event
+        self._fire_event(AlarmEvent.PRE_ALARM, alarm.get_event_data())
+
+        # Execute pre-alarm script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_pre_alarm,
+            "pre_alarm",
+        )
+
+        self._notify_update()
+
+    def _schedule_snooze_end(self, alarm_id: str, end_time: datetime) -> None:
+        """Schedule snooze end callback."""
+        self._cancel_snooze_callback(alarm_id)
+
+        if alarm_id in self._alarms:
+            self._alarms[alarm_id].set_snooze_end_time(end_time)
+
+        self._snooze_callbacks[alarm_id] = async_track_point_in_time(
+            self.hass,
+            lambda now, aid=alarm_id: self.hass.async_create_task(
+                self._async_handle_snooze_end(aid)
+            ),
+            end_time,
+        )
+
+    async def _async_handle_snooze_end(self, alarm_id: str) -> None:
+        """Handle snooze end - re-trigger alarm."""
+        if alarm_id not in self._alarms:
+            return
+
+        alarm = self._alarms[alarm_id]
+
+        if alarm.state != AlarmState.SNOOZED:
+            return
+
+        _LOGGER.debug("Snooze ended for alarm %s", alarm_id)
+
+        await self._async_trigger_alarm(alarm_id, TRIGGER_SCHEDULED)
+
+    def _schedule_auto_dismiss(self, alarm_id: str, dismiss_time: datetime) -> None:
+        """Schedule auto-dismiss callback."""
+        self._cancel_auto_dismiss_callback(alarm_id)
+
+        self._auto_dismiss_callbacks[alarm_id] = async_track_point_in_time(
+            self.hass,
+            lambda now, aid=alarm_id: self.hass.async_create_task(
+                self._async_handle_auto_dismiss(aid)
+            ),
+            dismiss_time,
+        )
+
+    async def _async_handle_auto_dismiss(self, alarm_id: str) -> None:
+        """Handle auto-dismiss timeout."""
+        if alarm_id not in self._alarms:
+            return
+
+        alarm = self._alarms[alarm_id]
+
+        if alarm.state not in (AlarmState.RINGING, AlarmState.SNOOZED):
+            return
+
+        _LOGGER.info("Auto-dismissing alarm %s after timeout", alarm_id)
+
+        await alarm.transition_to(AlarmState.AUTO_DISMISSED)
+
+        # Fire event
+        self._fire_event(AlarmEvent.AUTO_DISMISSED, alarm.get_event_data())
+
+        # Execute post-alarm script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_post_alarm,
+            "post_alarm",
+        )
+
+        # Handle one-time alarm
+        if alarm.data.one_time:
+            alarm.data.enabled = False
+            await self.store.async_update_alarm(alarm.data)
+            await alarm.transition_to(AlarmState.DISABLED)
+        else:
+            # Re-arm and schedule next
+            await alarm.transition_to(AlarmState.ARMED)
+            self._schedule_alarm(alarm_id)
+
+        self._notify_update()
+
+    async def async_snooze(
+        self, alarm_id: str, duration_minutes: int | None = None
+    ) -> bool:
+        """Snooze an alarm."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+
+        if alarm.state != AlarmState.RINGING:
+            _LOGGER.warning(
+                "Cannot snooze alarm %s - not ringing (state: %s)",
+                alarm_id,
+                alarm.state,
+            )
+            return False
+
+        # Check snooze limit
+        if alarm.snooze_count >= alarm.data.max_snooze_count:
+            _LOGGER.warning(
+                "Cannot snooze alarm %s - max snooze count (%d) reached",
+                alarm_id,
+                alarm.data.max_snooze_count,
+            )
+            return False
+
+        duration = duration_minutes or alarm.data.snooze_duration
+        snooze_end = dt_util.now() + timedelta(minutes=duration)
+
+        await alarm.transition_to(AlarmState.SNOOZED)
+
+        # Cancel auto-dismiss
+        self._cancel_auto_dismiss_callback(alarm_id)
+
+        # Schedule snooze end
+        self._schedule_snooze_end(alarm_id, snooze_end)
+
+        _LOGGER.info(
+            "Alarm %s snoozed for %d minutes (snooze %d/%d)",
+            alarm_id,
+            duration,
+            alarm.snooze_count,
+            alarm.data.max_snooze_count,
+        )
+
+        # Fire event
+        event_data = alarm.get_event_data()
+        event_data[ATTR_DURATION] = duration
+        self._fire_event(AlarmEvent.SNOOZED, event_data)
+
+        # Execute on-snooze script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_on_snooze,
+            "on_snooze",
+        )
+
+        # Save runtime state
+        await self.store.async_save_runtime_state(alarm_id, alarm.to_restore_data())
+
+        self._notify_update()
+        return True
+
+    async def async_dismiss(self, alarm_id: str) -> bool:
+        """Dismiss an alarm."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+
+        if alarm.state not in (AlarmState.RINGING, AlarmState.SNOOZED, AlarmState.PRE_ALARM):
+            _LOGGER.warning(
+                "Cannot dismiss alarm %s - not active (state: %s)",
+                alarm_id,
+                alarm.state,
+            )
+            return False
+
+        await alarm.transition_to(AlarmState.DISMISSED)
+
+        # Cancel callbacks
+        self._cancel_auto_dismiss_callback(alarm_id)
+        self._cancel_snooze_callback(alarm_id)
+
+        _LOGGER.info("Alarm %s dismissed", alarm_id)
+
+        # Fire event
+        self._fire_event(AlarmEvent.DISMISSED, alarm.get_event_data())
+
+        # Execute on-dismiss script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_on_dismiss,
+            "on_dismiss",
+        )
+
+        # Execute post-alarm script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_post_alarm,
+            "post_alarm",
+        )
+
+        # Handle one-time alarm
+        if alarm.data.one_time:
+            alarm.data.enabled = False
+            await self.store.async_update_alarm(alarm.data)
+            await alarm.transition_to(AlarmState.DISABLED)
+        else:
+            # Re-arm and schedule next
+            await alarm.transition_to(AlarmState.ARMED)
+            self._schedule_alarm(alarm_id)
+
+        self._notify_update()
+        return True
+
+    async def async_skip_next(self, alarm_id: str) -> bool:
+        """Skip the next occurrence of an alarm."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+        alarm.data.skip_next = True
+
+        await self.store.async_update_alarm(alarm.data)
+
+        # Cancel scheduled trigger
+        self._cancel_scheduled_callback(alarm_id)
+        self._cancel_pre_alarm_callback(alarm_id)
+
+        _LOGGER.info("Alarm %s - next occurrence will be skipped", alarm_id)
+
+        # Fire event
+        self._fire_event(AlarmEvent.SKIPPED, alarm.get_event_data())
+
+        # Execute on-skip script
+        await self._async_execute_script(
+            alarm_id,
+            alarm.data.script_on_skip,
+            "on_skip",
+        )
+
+        self._notify_update()
+        return True
+
+    async def async_cancel_skip(self, alarm_id: str) -> bool:
+        """Cancel skip for the next occurrence."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+        alarm.data.skip_next = False
+
+        await self.store.async_update_alarm(alarm.data)
+
+        # Re-schedule
+        if alarm.state == AlarmState.ARMED:
+            self._schedule_alarm(alarm_id)
+
+        self._notify_update()
+        return True
+
+    async def async_test_alarm(self, alarm_id: str) -> bool:
+        """Trigger an alarm for testing."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+
+        if alarm.state in (AlarmState.RINGING, AlarmState.SNOOZED):
+            _LOGGER.warning("Cannot test alarm %s - already active", alarm_id)
+            return False
+
+        _LOGGER.info("Testing alarm %s", alarm_id)
+
+        await self._async_trigger_alarm(alarm_id, TRIGGER_MANUAL_TEST)
+        return True
+
+    async def async_set_enabled(self, alarm_id: str, enabled: bool) -> bool:
+        """Enable or disable an alarm."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+        alarm.data.enabled = enabled
+
+        await self.store.async_update_alarm(alarm.data)
+
+        if enabled:
+            await alarm.transition_to(AlarmState.ARMED, force=True)
+            self._schedule_alarm(alarm_id)
+
+            # Fire event
+            self._fire_event(AlarmEvent.ARMED, alarm.get_event_data())
+
+            # Execute on-arm script
+            await self._async_execute_script(
+                alarm_id,
+                alarm.data.script_on_arm,
+                "on_arm",
+            )
+        else:
+            # Cancel callbacks
+            self._cancel_scheduled_callback(alarm_id)
+            self._cancel_pre_alarm_callback(alarm_id)
+
+            # If currently active, execute cancel script
+            if alarm.state in (AlarmState.RINGING, AlarmState.SNOOZED, AlarmState.PRE_ALARM):
+                self._cancel_auto_dismiss_callback(alarm_id)
+                self._cancel_snooze_callback(alarm_id)
+
+                await self._async_execute_script(
+                    alarm_id,
+                    alarm.data.script_on_cancel,
+                    "on_cancel",
+                )
+
+            await alarm.transition_to(AlarmState.DISABLED, force=True)
+
+            # Fire event
+            self._fire_event(AlarmEvent.DISARMED, alarm.get_event_data())
+
+        self._notify_update()
+        return True
+
+    async def async_set_time(self, alarm_id: str, time: str) -> bool:
+        """Set alarm time."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+        old_time = alarm.data.time
+        alarm.data.time = time
+
+        # Validate
+        errors = alarm.data.validate()
+        if errors:
+            alarm.data.time = old_time
+            return False
+
+        await self.store.async_update_alarm(alarm.data)
+
+        # Reschedule
+        if alarm.state == AlarmState.ARMED:
+            self._schedule_alarm(alarm_id)
+
+        # Fire event
+        event_data = alarm.get_event_data()
+        event_data["old_time"] = old_time
+        self._fire_event(AlarmEvent.TIME_CHANGED, event_data)
+
+        self._notify_update()
+        return True
+
+    async def async_set_days(self, alarm_id: str, days: list[str]) -> bool:
+        """Set alarm days."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+        alarm.data.days = days
+
+        await self.store.async_update_alarm(alarm.data)
+
+        # Reschedule
+        if alarm.state == AlarmState.ARMED:
+            self._schedule_alarm(alarm_id)
+
+        self._notify_update()
+        return True
+
+    async def _async_execute_script(
+        self,
+        alarm_id: str,
+        script_entity_id: str | None,
+        script_type: str,
+    ) -> bool:
+        """Execute a script with retry and timeout."""
+        if not script_entity_id:
+            return True
+
+        alarm = self._alarms.get(alarm_id)
+        if not alarm:
+            return False
+
+        timeout = alarm.data.script_timeout
+        max_retries = alarm.data.script_retry_count
+        context = alarm.get_script_context()
+
+        for attempt in range(max_retries):
+            try:
+                _LOGGER.debug(
+                    "Executing %s script %s for alarm %s (attempt %d/%d)",
+                    script_type,
+                    script_entity_id,
+                    alarm_id,
+                    attempt + 1,
+                    max_retries,
+                )
+
+                # Execute with timeout
+                await asyncio.wait_for(
+                    self.hass.services.async_call(
+                        "script",
+                        script_entity_id.replace("script.", ""),
+                        {
+                            "alarm_context": context,
+                        },
+                        blocking=True,
+                    ),
+                    timeout=timeout,
+                )
+
+                _LOGGER.debug(
+                    "Successfully executed %s script for alarm %s",
+                    script_type,
+                    alarm_id,
+                )
+                return True
+
+            except asyncio.TimeoutError:
+                _LOGGER.warning(
+                    "Timeout executing %s script %s for alarm %s (attempt %d/%d)",
+                    script_type,
+                    script_entity_id,
+                    alarm_id,
+                    attempt + 1,
+                    max_retries,
+                )
+
+            except Exception as err:
+                _LOGGER.warning(
+                    "Error executing %s script %s for alarm %s (attempt %d/%d): %s",
+                    script_type,
+                    script_entity_id,
+                    alarm_id,
+                    attempt + 1,
+                    max_retries,
+                    err,
+                )
+
+            # Exponential backoff
+            if attempt < max_retries - 1:
+                backoff = 2 ** attempt
+                await asyncio.sleep(backoff)
+
+        # All retries failed
+        _LOGGER.error(
+            "Failed to execute %s script %s for alarm %s after %d attempts",
+            script_type,
+            script_entity_id,
+            alarm_id,
+            max_retries,
+        )
+
+        # Fire script failed event
+        self._fire_event(
+            AlarmEvent.SCRIPT_FAILED,
+            {
+                ATTR_ALARM_ID: alarm_id,
+                "script_entity_id": script_entity_id,
+                "script_type": script_type,
+                ATTR_ERROR_MESSAGE: f"Script failed after {max_retries} attempts",
+            },
+        )
+
+        # Execute fallback if available
+        if alarm.data.script_fallback and script_entity_id != alarm.data.script_fallback:
+            _LOGGER.info(
+                "Executing fallback script for alarm %s",
+                alarm_id,
+            )
+            return await self._async_execute_script(
+                alarm_id,
+                alarm.data.script_fallback,
+                "fallback",
+            )
+
+        return False
+
+    async def _async_check_missed_alarms(self) -> None:
+        """Check for alarms that might have been missed during downtime."""
+        now = dt_util.now()
+        grace_period = timedelta(minutes=DEFAULT_MISSED_ALARM_GRACE_PERIOD)
+
+        for alarm_id, alarm in self._alarms.items():
+            if alarm.state != AlarmState.ARMED:
+                continue
+
+            if not alarm.data.enabled:
+                continue
+
+            # Calculate what the trigger time would have been
+            expected_trigger = self._calculate_next_trigger(alarm.data)
+
+            if expected_trigger is None:
+                continue
+
+            # Check if we missed a trigger within the grace period
+            # This would happen if the expected next trigger is in the past
+            # but within the grace period
+            if expected_trigger < now:
+                time_missed = now - expected_trigger
+                if time_missed <= grace_period:
+                    _LOGGER.warning(
+                        "Detected missed alarm %s (was due %s ago)",
+                        alarm_id,
+                        time_missed,
+                    )
+
+                    # Fire missed event
+                    self._fire_event(
+                        AlarmEvent.MISSED,
+                        {
+                            **alarm.get_event_data(),
+                            "missed_by_seconds": time_missed.total_seconds(),
+                        },
+                    )
+
+                    # Trigger the missed alarm
+                    await self._async_trigger_alarm(alarm_id, TRIGGER_MISSED_RECOVERY)
+
+    def _schedule_health_check(self) -> None:
+        """Schedule periodic health check."""
+        if self._health_check_callback:
+            self._health_check_callback()
+
+        next_check = dt_util.now() + timedelta(seconds=HEALTH_CHECK_INTERVAL)
+
+        self._health_check_callback = async_track_point_in_time(
+            self.hass,
+            lambda now: self.hass.async_create_task(self._async_run_health_check()),
+            next_check,
+        )
+
+    async def _async_run_health_check(self) -> None:
+        """Run health check."""
+        issues = []
+
+        # Check for inconsistent states
+        for alarm_id, alarm in self._alarms.items():
+            # Enabled but not scheduled
+            if (
+                alarm.data.enabled
+                and alarm.state == AlarmState.ARMED
+                and alarm_id not in self._scheduled_callbacks
+            ):
+                issues.append(f"Alarm {alarm_id} is armed but not scheduled")
+                # Try to fix
+                self._schedule_alarm(alarm_id)
+
+            # Snoozed without callback
+            if (
+                alarm.state == AlarmState.SNOOZED
+                and alarm_id not in self._snooze_callbacks
+            ):
+                issues.append(f"Alarm {alarm_id} is snoozed but no wake callback")
+                # Try to fix by re-triggering
+                await self._async_trigger_alarm(alarm_id, TRIGGER_SCHEDULED)
+
+            # Ringing without auto-dismiss
+            if (
+                alarm.state == AlarmState.RINGING
+                and alarm_id not in self._auto_dismiss_callbacks
+            ):
+                issues.append(f"Alarm {alarm_id} is ringing but no auto-dismiss scheduled")
+                # Schedule auto-dismiss
+                auto_dismiss_time = dt_util.now() + timedelta(
+                    minutes=alarm.data.auto_dismiss_timeout
+                )
+                self._schedule_auto_dismiss(alarm_id, auto_dismiss_time)
+
+        # Update health status
+        self._health_status = {
+            "healthy": len(issues) == 0,
+            "last_check": dt_util.now().isoformat(),
+            "issues": issues,
+            "alarm_count": len(self._alarms),
+            "active_alarms": sum(
+                1 for a in self._alarms.values()
+                if a.state in (AlarmState.RINGING, AlarmState.SNOOZED)
+            ),
+        }
+
+        if issues:
+            _LOGGER.warning("Health check found issues: %s", issues)
+            self._fire_event(
+                AlarmEvent.HEALTH_WARNING,
+                {"issues": issues},
+            )
+
+        # Schedule next check
+        if self._running:
+            self._schedule_health_check()
+
+        self._notify_update()
+
+    async def async_validate_entities(self) -> None:
+        """Validate that all referenced entities exist."""
+        entity_registry = er.async_get(self.hass)
+        missing_entities = []
+
+        for alarm_id, alarm in self._alarms.items():
+            for script_field in [
+                "script_pre_alarm",
+                "script_alarm",
+                "script_post_alarm",
+                "script_on_snooze",
+                "script_on_dismiss",
+                "script_on_arm",
+                "script_on_cancel",
+                "script_on_skip",
+                "script_fallback",
+            ]:
+                script_id = getattr(alarm.data, script_field, None)
+                if script_id:
+                    # Check if entity exists
+                    entity = entity_registry.async_get(script_id)
+                    if entity is None:
+                        # Also check by state
+                        state = self.hass.states.get(script_id)
+                        if state is None:
+                            missing_entities.append((alarm_id, script_field, script_id))
+
+        if missing_entities:
+            for alarm_id, field, entity_id in missing_entities:
+                _LOGGER.warning(
+                    "Alarm %s references missing entity %s (%s)",
+                    alarm_id,
+                    entity_id,
+                    field,
+                )
+            self._fire_event(
+                AlarmEvent.HEALTH_WARNING,
+                {
+                    "message": "Some referenced scripts do not exist",
+                    "missing_entities": [
+                        {"alarm_id": a, "field": f, "entity_id": e}
+                        for a, f, e in missing_entities
+                    ],
+                },
+            )
+
+    def _fire_event(self, event_type: AlarmEvent, data: dict[str, Any]) -> None:
+        """Fire an event."""
+        event_data = {
+            **data,
+            "timestamp": dt_util.now().isoformat(),
+        }
+        self.hass.bus.async_fire(event_type, event_data)
+        _LOGGER.debug("Fired event %s: %s", event_type, event_data)
+
+    def _on_alarm_state_change(
+        self, alarm_id: str, old_state: AlarmState, new_state: AlarmState
+    ) -> None:
+        """Handle alarm state change."""
+        _LOGGER.debug(
+            "Alarm %s state changed: %s -> %s",
+            alarm_id,
+            old_state,
+            new_state,
+        )
+
+    def _cancel_scheduled_callback(self, alarm_id: str) -> None:
+        """Cancel scheduled alarm callback."""
+        if alarm_id in self._scheduled_callbacks:
+            callback = self._scheduled_callbacks.pop(alarm_id)
+            if callback:
+                callback()
+
+    def _cancel_snooze_callback(self, alarm_id: str) -> None:
+        """Cancel snooze callback."""
+        if alarm_id in self._snooze_callbacks:
+            callback = self._snooze_callbacks.pop(alarm_id)
+            if callback:
+                callback()
+
+    def _cancel_auto_dismiss_callback(self, alarm_id: str) -> None:
+        """Cancel auto-dismiss callback."""
+        if alarm_id in self._auto_dismiss_callbacks:
+            callback = self._auto_dismiss_callbacks.pop(alarm_id)
+            if callback:
+                callback()
+
+    def _cancel_pre_alarm_callback(self, alarm_id: str) -> None:
+        """Cancel pre-alarm callback."""
+        if alarm_id in self._pre_alarm_callbacks:
+            callback = self._pre_alarm_callbacks.pop(alarm_id)
+            if callback:
+                callback()
+
+    def register_update_callback(self, callback: callable) -> callable:
+        """Register a callback for updates."""
+        self._update_callbacks.append(callback)
+
+        def remove_callback() -> None:
+            if callback in self._update_callbacks:
+                self._update_callbacks.remove(callback)
+
+        return remove_callback
+
+    def _notify_update(self) -> None:
+        """Notify all registered callbacks of an update."""
+        for callback in self._update_callbacks:
+            try:
+                callback()
+            except Exception:
+                _LOGGER.exception("Error in update callback")
+
+    async def async_register_services(self) -> None:
+        """Register services."""
+        # Service schemas
+        snooze_schema = vol.Schema({
+            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            vol.Optional(ATTR_DURATION): vol.Coerce(int),
+        })
+
+        entity_schema = vol.Schema({
+            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+        })
+
+        set_time_schema = vol.Schema({
+            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            vol.Required(ATTR_ALARM_TIME): cv.string,
+        })
+
+        set_days_schema = vol.Schema({
+            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            vol.Required(ATTR_DAYS): vol.All(cv.ensure_list, [cv.string]),
+        })
+
+        create_alarm_schema = vol.Schema({
+            vol.Required(CONF_ALARM_NAME): cv.string,
+            vol.Required(CONF_ALARM_TIME): cv.string,
+            vol.Optional(CONF_DAYS, default=WEEKDAYS[:5]): vol.All(cv.ensure_list, [cv.string]),
+            vol.Optional(CONF_ENABLED, default=True): cv.boolean,
+            vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
+            vol.Optional(CONF_SNOOZE_DURATION, default=DEFAULT_SNOOZE_DURATION): vol.Coerce(int),
+            vol.Optional(CONF_MAX_SNOOZE_COUNT, default=3): vol.Coerce(int),
+        })
+
+        delete_alarm_schema = vol.Schema({
+            vol.Required(CONF_ALARM_ID): cv.string,
+        })
+
+        async def handle_snooze(call: ServiceCall) -> None:
+            """Handle snooze service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            duration = call.data.get(ATTR_DURATION)
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_snooze(alarm_id, duration)
+
+        async def handle_dismiss(call: ServiceCall) -> None:
+            """Handle dismiss service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_dismiss(alarm_id)
+
+        async def handle_skip_next(call: ServiceCall) -> None:
+            """Handle skip next service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_skip_next(alarm_id)
+
+        async def handle_cancel_skip(call: ServiceCall) -> None:
+            """Handle cancel skip service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_cancel_skip(alarm_id)
+
+        async def handle_test_alarm(call: ServiceCall) -> None:
+            """Handle test alarm service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_test_alarm(alarm_id)
+
+        async def handle_set_time(call: ServiceCall) -> None:
+            """Handle set time service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            time = call.data[ATTR_ALARM_TIME]
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_set_time(alarm_id, time)
+
+        async def handle_set_days(call: ServiceCall) -> None:
+            """Handle set days service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            days = call.data[ATTR_DAYS]
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                await self.async_set_days(alarm_id, days)
+
+        async def handle_create_alarm(call: ServiceCall) -> None:
+            """Handle create alarm service call."""
+            import uuid
+            alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
+            alarm_data = AlarmData(
+                alarm_id=alarm_id,
+                name=call.data[CONF_ALARM_NAME],
+                time=call.data[CONF_ALARM_TIME],
+                days=call.data.get(CONF_DAYS, WEEKDAYS[:5]),
+                enabled=call.data.get(CONF_ENABLED, True),
+                one_time=call.data.get(CONF_ONE_TIME, False),
+                snooze_duration=call.data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
+                max_snooze_count=call.data.get(CONF_MAX_SNOOZE_COUNT, 3),
+            )
+            await self.async_add_alarm(alarm_data)
+
+        async def handle_delete_alarm(call: ServiceCall) -> None:
+            """Handle delete alarm service call."""
+            alarm_id = call.data[CONF_ALARM_ID]
+            await self.async_remove_alarm(alarm_id)
+
+        # Register services
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_SNOOZE, handle_snooze, schema=snooze_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_DISMISS, handle_dismiss, schema=entity_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_SKIP_NEXT, handle_skip_next, schema=entity_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_CANCEL_SKIP, handle_cancel_skip, schema=entity_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_TEST_ALARM, handle_test_alarm, schema=entity_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_SET_TIME, handle_set_time, schema=set_time_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_SET_DAYS, handle_set_days, schema=set_days_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_CREATE_ALARM, handle_create_alarm, schema=create_alarm_schema
+        )
+        self.hass.services.async_register(
+            DOMAIN, SERVICE_DELETE_ALARM, handle_delete_alarm, schema=delete_alarm_schema
+        )
+
+        _LOGGER.debug("Registered alarm clock services")
+
+    def _entity_id_to_alarm_id(self, entity_id: str) -> str | None:
+        """Convert entity ID to alarm ID."""
+        # Entity ID format: switch.alarm_clock_{alarm_id}
+        for alarm_id in self._alarms:
+            if entity_id.endswith(alarm_id):
+                return alarm_id
+        return None
