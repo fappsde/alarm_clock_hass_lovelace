@@ -1,4 +1,5 @@
 """Storage for Alarm Clock integration."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN, STORE_KEY, STORE_VERSION
+from .const import STORE_KEY, STORE_VERSION
 from .state_machine import AlarmData
 
 if TYPE_CHECKING:
@@ -71,16 +72,14 @@ class AlarmClockStore:
         await self._store.async_save(self._data)
         _LOGGER.debug("Saved %d alarms to storage", len(self.alarms))
 
-    async def _migrate_data(
-        self, data: dict[str, Any], from_version: int
-    ) -> dict[str, Any]:
+    async def _migrate_data(self, data: dict[str, Any], from_version: int) -> dict[str, Any]:
         """Migrate data from older versions."""
         _LOGGER.info("Migrating storage from version %d to %d", from_version, STORE_VERSION)
 
         # Version 1 -> 2 migration (example for future use)
         if from_version < 2:
             # Add any new fields with defaults
-            for alarm_id, alarm_data in data.get("alarms", {}).items():
+            for _alarm_id, alarm_data in data.get("alarms", {}).items():
                 if "gradual_volume" not in alarm_data:
                     alarm_data["gradual_volume"] = False
                 if "gradual_volume_duration" not in alarm_data:
@@ -120,9 +119,7 @@ class AlarmClockStore:
         _LOGGER.debug("Removed alarm: %s", alarm_id)
         return True
 
-    async def async_save_runtime_state(
-        self, alarm_id: str, state_data: dict[str, Any]
-    ) -> None:
+    async def async_save_runtime_state(self, alarm_id: str, state_data: dict[str, Any]) -> None:
         """Save runtime state for an alarm."""
         if "runtime_states" not in self._data:
             self._data["runtime_states"] = {}
@@ -148,10 +145,7 @@ class AlarmClockStore:
 
     def get_all_alarms(self) -> list[AlarmData]:
         """Get all alarms as AlarmData objects."""
-        return [
-            AlarmData.from_dict(data)
-            for data in self._data.get("alarms", {}).values()
-        ]
+        return [AlarmData.from_dict(data) for data in self._data.get("alarms", {}).values()]
 
     async def async_clear_all(self) -> None:
         """Clear all stored data."""

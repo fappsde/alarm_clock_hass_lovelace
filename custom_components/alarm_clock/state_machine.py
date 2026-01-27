@@ -1,24 +1,24 @@
 """State machine for alarm clock states."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     ATTR_ALARM_ID,
     ATTR_ALARM_NAME,
     ATTR_ALARM_STATE,
     ATTR_ALARM_TIME,
-    ATTR_ERROR_MESSAGE,
     ATTR_IS_ONE_TIME,
     ATTR_SNOOZE_COUNT,
     ATTR_TRIGGER_TYPE,
-    AlarmEvent,
-    AlarmState,
     VALID_STATE_TRANSITIONS,
+    AlarmState,
 )
 
 if TYPE_CHECKING:
@@ -34,9 +34,7 @@ class InvalidStateTransitionError(Exception):
         """Initialize the exception."""
         self.current_state = current_state
         self.target_state = target_state
-        super().__init__(
-            f"Invalid state transition from {current_state} to {target_state}"
-        )
+        super().__init__(f"Invalid state transition from {current_state} to {target_state}")
 
 
 @dataclass
@@ -47,9 +45,9 @@ class AlarmData:
     name: str
     time: str  # HH:MM format
     enabled: bool = True
-    days: list[str] = field(default_factory=lambda: [
-        "monday", "tuesday", "wednesday", "thursday", "friday"
-    ])
+    days: list[str] = field(
+        default_factory=lambda: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    )
     one_time: bool = False
     skip_next: bool = False
     snooze_duration: int = 9  # minutes
@@ -360,14 +358,10 @@ class AlarmStateMachine:
             "state": self._runtime.state.value,
             "snooze_count": self._runtime.snooze_count,
             "last_triggered": (
-                self._runtime.last_triggered.isoformat()
-                if self._runtime.last_triggered
-                else None
+                self._runtime.last_triggered.isoformat() if self._runtime.last_triggered else None
             ),
             "snooze_end_time": (
-                self._runtime.snooze_end_time.isoformat()
-                if self._runtime.snooze_end_time
-                else None
+                self._runtime.snooze_end_time.isoformat() if self._runtime.snooze_end_time else None
             ),
         }
 

@@ -1,4 +1,5 @@
 """Constants for the Alarm Clock integration."""
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -92,7 +93,12 @@ class MissedAlarmAction(StrEnum):
 # Valid state transitions
 VALID_STATE_TRANSITIONS: Final[dict[AlarmState, list[AlarmState]]] = {
     AlarmState.DISABLED: [AlarmState.ARMED],
-    AlarmState.ARMED: [AlarmState.DISABLED, AlarmState.PRE_ALARM, AlarmState.RINGING, AlarmState.MISSED],
+    AlarmState.ARMED: [
+        AlarmState.DISABLED,
+        AlarmState.PRE_ALARM,
+        AlarmState.RINGING,
+        AlarmState.MISSED,
+    ],
     AlarmState.PRE_ALARM: [AlarmState.RINGING, AlarmState.DISABLED, AlarmState.MISSED],
     AlarmState.RINGING: [
         AlarmState.SNOOZED,

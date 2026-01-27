@@ -1,4 +1,5 @@
 """Base entity for Alarm Clock integration."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,7 +12,6 @@ from .const import DOMAIN
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
 
     from .coordinator import AlarmClockCoordinator
     from .state_machine import AlarmStateMachine
@@ -56,11 +56,7 @@ class AlarmClockEntity(Entity, RestoreEntity):
         await super().async_added_to_hass()
 
         # Register for updates
-        self.async_on_remove(
-            self.coordinator.register_update_callback(
-                self.async_write_ha_state
-            )
-        )
+        self.async_on_remove(self.coordinator.register_update_callback(self.async_write_ha_state))
 
         # Restore state if available
         if (last_state := await self.async_get_last_state()) is not None:
@@ -99,8 +95,4 @@ class AlarmClockDeviceEntity(Entity):
         await super().async_added_to_hass()
 
         # Register for updates
-        self.async_on_remove(
-            self.coordinator.register_update_callback(
-                self.async_write_ha_state
-            )
-        )
+        self.async_on_remove(self.coordinator.register_update_callback(self.async_write_ha_state))

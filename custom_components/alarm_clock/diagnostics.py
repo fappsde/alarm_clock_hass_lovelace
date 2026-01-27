@@ -1,7 +1,8 @@
 """Diagnostics support for Alarm Clock."""
+
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
@@ -49,12 +50,8 @@ async def async_get_config_entry_diagnostics(
             "pre_alarm_duration": alarm.data.pre_alarm_duration,
             "state": alarm.state.value,
             "snooze_count": alarm.snooze_count,
-            "next_trigger": (
-                alarm.next_trigger.isoformat() if alarm.next_trigger else None
-            ),
-            "last_triggered": (
-                alarm.last_triggered.isoformat() if alarm.last_triggered else None
-            ),
+            "next_trigger": (alarm.next_trigger.isoformat() if alarm.next_trigger else None),
+            "last_triggered": (alarm.last_triggered.isoformat() if alarm.last_triggered else None),
             "scripts": async_redact_data(
                 {
                     "script_pre_alarm": alarm.data.script_pre_alarm,
