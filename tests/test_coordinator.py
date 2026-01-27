@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -29,6 +30,7 @@ class TestAlarmClockCoordinator:
         hass.states = MagicMock()
         hass.states.get = MagicMock(return_value=None)
         hass.async_create_task = MagicMock(side_effect=lambda x: x)
+        hass.loop = asyncio.get_event_loop()
         return hass
 
     @pytest.fixture
@@ -333,6 +335,7 @@ class TestCalculateNextTrigger:
         from unittest.mock import Mock
 
         hass = MagicMock()
+        hass.loop = asyncio.get_event_loop()
         entry = MagicMock()
         entry.entry_id = "test"
         store = AsyncMock()
@@ -406,6 +409,7 @@ class TestScriptExecution:
         from unittest.mock import Mock
 
         hass = MagicMock()
+        hass.loop = asyncio.get_event_loop()
         hass.services = MagicMock()
         hass.services.async_call = AsyncMock()
         entry = MagicMock()
