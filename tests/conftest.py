@@ -38,6 +38,7 @@ def mock_config_entry() -> ConfigEntry:
         entry_id="test_entry_id",
         unique_id="test_unique_id",
         options={},
+        discovery_keys={},
     )
 
 
