@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.0.1";
 
 // Log card info
 console.info(

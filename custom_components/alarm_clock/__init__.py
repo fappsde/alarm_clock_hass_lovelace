@@ -34,7 +34,9 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 # Path to the card JavaScript file
+CARD_VERSION = "1.0.1"
 CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
+CARD_JS_URL_VERSIONED = f"/{DOMAIN}/alarm-clock-card.js?v={CARD_VERSION}"
 CARD_JS_PATH = Path(__file__).parent / "alarm-clock-card.js"
 
 PLATFORMS: list[Platform] = [
@@ -68,7 +70,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
     """Register the alarm clock card as a Lovelace resource."""
-    resource_url = CARD_JS_URL
+    resource_url = CARD_JS_URL_VERSIONED
 
     # Check if lovelace resources component is available
     if "lovelace" not in hass.data:
@@ -86,15 +88,27 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
             _LOGGER.debug("Lovelace resources not available (YAML mode?)")
             return
 
-        # Check if resource is already registered
+        # Check if resource is already registered and remove old versions
+        resource_found = False
         for resource in resources.async_items():
-            if resource.get("url") == resource_url:
-                _LOGGER.debug("Alarm clock card resource already registered")
-                return
+            url = resource.get("url", "")
+            # Check if this is our resource (with or without version parameter)
+            if url.startswith(CARD_JS_URL):
+                if url == resource_url:
+                    _LOGGER.debug("Alarm clock card resource already registered")
+                    resource_found = True
+                else:
+                    # Remove old version
+                    _LOGGER.debug("Removing old alarm clock card resource: %s", url)
+                    try:
+                        await resources.async_delete_item(resource["id"])
+                    except Exception as del_err:
+                        _LOGGER.warning("Could not remove old resource: %s", del_err)
 
-        # Register the resource
-        await resources.async_create_item({"res_type": "module", "url": resource_url})
-        _LOGGER.info("Registered alarm clock card as Lovelace resource: %s", resource_url)
+        if not resource_found:
+            # Register the new resource
+            await resources.async_create_item({"res_type": "module", "url": resource_url})
+            _LOGGER.info("Registered alarm clock card as Lovelace resource: %s", resource_url)
 
     except Exception as err:
         _LOGGER.warning("Could not auto-register Lovelace resource: %s", err)
