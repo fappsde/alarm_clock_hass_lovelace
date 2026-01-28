@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 # Path to the card JavaScript file
-CARD_VERSION = "1.0.1"
+CARD_VERSION = "1.0.2"
 CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
 CARD_JS_URL_VERSIONED = f"/{DOMAIN}/alarm-clock-card.js?v={CARD_VERSION}"
 CARD_JS_PATH = Path(__file__).parent / "alarm-clock-card.js"
