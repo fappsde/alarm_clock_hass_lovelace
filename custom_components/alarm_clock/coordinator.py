@@ -303,8 +303,8 @@ class AlarmClockCoordinator:
         # Schedule new callback
         self._scheduled_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_create_task(
-                self._async_handle_alarm_trigger(aid)
+            lambda now, aid=alarm_id: self.hass.async_add_job(
+                self._async_handle_alarm_trigger, aid
             ),
             next_trigger,
         )
@@ -411,8 +411,8 @@ class AlarmClockCoordinator:
 
         self._pre_alarm_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_create_task(
-                self._async_handle_pre_alarm(aid)
+            lambda now, aid=alarm_id: self.hass.async_add_job(
+                self._async_handle_pre_alarm, aid
             ),
             trigger_time,
         )
@@ -452,8 +452,8 @@ class AlarmClockCoordinator:
 
         self._snooze_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_create_task(
-                self._async_handle_snooze_end(aid)
+            lambda now, aid=alarm_id: self.hass.async_add_job(
+                self._async_handle_snooze_end, aid
             ),
             end_time,
         )
@@ -478,8 +478,8 @@ class AlarmClockCoordinator:
 
         self._auto_dismiss_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_create_task(
-                self._async_handle_auto_dismiss(aid)
+            lambda now, aid=alarm_id: self.hass.async_add_job(
+                self._async_handle_auto_dismiss, aid
             ),
             dismiss_time,
         )
@@ -949,7 +949,7 @@ class AlarmClockCoordinator:
 
         self._health_check_callback = async_track_point_in_time(
             self.hass,
-            lambda now: self.hass.async_create_task(self._async_run_health_check()),
+            lambda now: self.hass.async_add_job(self._async_run_health_check),
             next_check,
         )
 
