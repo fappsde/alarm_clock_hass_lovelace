@@ -1299,7 +1299,15 @@ class AlarmClockCoordinator:
 
     def _entity_id_to_alarm_id(self, entity_id: str) -> str | None:
         """Convert entity ID to alarm ID."""
-        # Entity ID format: switch.alarm_clock_{alarm_id}
+        # Try to get the alarm_id from the entity's attributes
+        if entity_id in self.hass.states:
+            entity = self.hass.states.get(entity_id)
+            if entity and hasattr(entity, 'attributes'):
+                alarm_id = entity.attributes.get('alarm_id')
+                if alarm_id and alarm_id in self._alarms:
+                    return alarm_id
+
+        # Fallback: try to match by entity_id ending
         for alarm_id in self._alarms:
             if entity_id.endswith(alarm_id):
                 return alarm_id
