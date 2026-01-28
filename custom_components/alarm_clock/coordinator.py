@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import CALLBACK_TYPE, ServiceCall, callback
+from homeassistant.core import CALLBACK_TYPE, ServiceCall
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.util import dt as dt_util

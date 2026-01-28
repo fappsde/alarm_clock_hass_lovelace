@@ -63,9 +63,7 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
 
     try:
         # Get the resources collection
-        resources: ResourceStorageCollection | None = hass.data["lovelace"].get(
-            "resources"
-        )
+        resources: ResourceStorageCollection | None = hass.data["lovelace"].get("resources")
 
         if resources is None:
             _LOGGER.debug("Lovelace resources not available (YAML mode?)")
