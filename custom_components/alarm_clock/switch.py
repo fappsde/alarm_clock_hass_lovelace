@@ -99,6 +99,7 @@ class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
             "snooze_end_time": (
                 self.alarm.snooze_end_time.isoformat() if self.alarm.snooze_end_time else None
             ),
+            "entry_id": self.entry.entry_id,
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
