@@ -116,15 +116,24 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Validate time format
+            # Validate time format - TimeSelector can return dict or string
             try:
-                parts = user_input[CONF_ALARM_TIME].split(":")
-                if len(parts) != 2:
-                    raise ValueError("Invalid format")
-                hour, minute = int(parts[0]), int(parts[1])
-                if not (0 <= hour <= 23 and 0 <= minute <= 59):
-                    raise ValueError("Out of range")
-            except (ValueError, AttributeError):
+                time_value = user_input[CONF_ALARM_TIME]
+                if isinstance(time_value, dict):
+                    # TimeSelector returns dict with hours and minutes
+                    hour = time_value.get("hours", 0)
+                    minute = time_value.get("minutes", 0)
+                    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                        raise ValueError("Out of range")
+                else:
+                    # String format validation
+                    parts = str(time_value).split(":")
+                    if len(parts) != 2:
+                        raise ValueError("Invalid format")
+                    hour, minute = int(parts[0]), int(parts[1])
+                    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                        raise ValueError("Out of range")
+            except (ValueError, AttributeError, TypeError):
                 errors[CONF_ALARM_TIME] = "invalid_time"
 
             if not errors:
@@ -132,12 +141,15 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 self._alarm_data = user_input
                 return await self.async_step_alarm_advanced()
 
+        # Provide default time of 7:00 AM
+        default_time = {"hours": 7, "minutes": 0}
+        
         return self.async_show_form(
             step_id="add_alarm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ALARM_NAME): cv.string,
-                    vol.Required(CONF_ALARM_TIME): selector.TimeSelector(),
+                    vol.Required(CONF_ALARM_NAME, default=""): cv.string,
+                    vol.Required(CONF_ALARM_TIME, default=default_time): selector.TimeSelector(),
                     vol.Required(CONF_DAYS, default=WEEKDAYS[:5]): _weekday_selector(),
                     vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
                     vol.Optional(CONF_ENABLED, default=True): cv.boolean,
@@ -198,6 +210,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 )
                 await coordinator.async_add_alarm(new_alarm)
 
+            # Clear the alarm data after successful submission
+            self._alarm_data = {}
+            
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
