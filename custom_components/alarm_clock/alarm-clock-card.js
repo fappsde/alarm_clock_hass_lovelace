@@ -50,9 +50,23 @@ class AlarmClockCard extends LitElement {
     return document.createElement("alarm-clock-card-editor");
   }
 
-  static getStubConfig() {
+  static getStubConfig(hass) {
+    // Try to find an alarm clock entity automatically
+    let defaultEntity = "";
+    if (hass && hass.states) {
+      const alarmEntity = Object.keys(hass.states).find(
+        (entityId) =>
+          entityId.startsWith("switch.alarm_clock") ||
+          (entityId.startsWith("switch.alarm_") &&
+            hass.states[entityId].attributes?.alarm_id)
+      );
+      if (alarmEntity) {
+        defaultEntity = alarmEntity;
+      }
+    }
+
     return {
-      entity: "",
+      entity: defaultEntity,
       title: "Alarm Clock",
       show_next_alarm: true,
       compact_mode: false,
@@ -60,9 +74,8 @@ class AlarmClockCard extends LitElement {
   }
 
   setConfig(config) {
-    if (!config.entity) {
-      throw new Error("Please define an entity");
-    }
+    // Don't throw error for missing entity during editing
+    // Just store the config and show a helpful message in render
     this.config = {
       title: "Alarm Clock",
       show_next_alarm: true,
@@ -427,11 +440,32 @@ class AlarmClockCard extends LitElement {
       return html``;
     }
 
+    // Show helpful message if no entity is configured
+    if (!this.config.entity) {
+      return html`
+        <ha-card>
+          <div class="no-alarms">
+            <ha-icon icon="mdi:alarm-plus" style="font-size: 48px; opacity: 0.5; margin-bottom: 16px;"></ha-icon>
+            <div>No entity configured</div>
+            <div style="font-size: 0.9em; margin-top: 8px;">
+              Edit this card to select an alarm clock entity
+            </div>
+          </div>
+        </ha-card>
+      `;
+    }
+
     const entity = this.hass.states[this.config.entity];
     if (!entity) {
       return html`
         <ha-card>
-          <div class="no-alarms">Entity not found: ${this.config.entity}</div>
+          <div class="no-alarms">
+            <ha-icon icon="mdi:alert-circle-outline" style="font-size: 32px; opacity: 0.5; margin-bottom: 8px;"></ha-icon>
+            <div>Entity not found: ${this.config.entity}</div>
+            <div style="font-size: 0.9em; margin-top: 8px;">
+              Please check if the entity exists or select a different one
+            </div>
+          </div>
         </ha-card>
       `;
     }
@@ -869,11 +903,34 @@ class AlarmClockCardEditor extends LitElement {
     return {
       hass: { type: Object },
       _config: { type: Object },
+      _entities: { type: Array },
     };
   }
 
+  constructor() {
+    super();
+    this._config = {};
+    this._entities = [];
+  }
+
   setConfig(config) {
-    this._config = config;
+    this._config = { ...config };
+  }
+
+  get _entity() {
+    return this._config.entity || "";
+  }
+
+  get _title() {
+    return this._config.title || "Alarm Clock";
+  }
+
+  get _show_next_alarm() {
+    return this._config.show_next_alarm !== false;
+  }
+
+  get _compact_mode() {
+    return this._config.compact_mode === true;
   }
 
   static get styles() {
@@ -886,83 +943,155 @@ class AlarmClockCardEditor extends LitElement {
         display: block;
         margin-bottom: 4px;
         font-weight: 500;
+        color: var(--primary-text-color);
       }
 
-      ha-entity-picker,
-      ha-textfield {
+      ha-entity-picker {
+        display: block;
+        width: 100%;
+      }
+
+      ha-textfield,
+      ha-text-field {
+        display: block;
         width: 100%;
       }
 
       ha-formfield {
         display: block;
         margin-bottom: 8px;
+        padding: 8px 0;
+      }
+
+      .description {
+        font-size: 0.85em;
+        color: var(--secondary-text-color);
+        margin-top: 4px;
       }
     `;
   }
 
   render() {
-    if (!this.hass || !this._config) {
+    if (!this.hass) {
       return html``;
     }
 
+    // Get alarm clock related entities for the picker
+    const alarmEntities = Object.keys(this.hass.states)
+      .filter((entityId) => {
+        return (
+          entityId.startsWith("switch.alarm_clock") ||
+          entityId.startsWith("switch.alarm_") ||
+          (entityId.startsWith("switch.") &&
+            this.hass.states[entityId].attributes.alarm_id)
+        );
+      })
+      .sort();
+
     return html`
       <div class="form-row">
-        <label>Entity</label>
         <ha-entity-picker
-          .hass="${this.hass}"
-          .value="${this._config.entity}"
-          .includeDomains="${["switch"]}"
-          @value-changed="${this._entityChanged}"
+          label="Entity (Required)"
+          .hass=${this.hass}
+          .value=${this._entity}
+          .configValue=${"entity"}
+          .includeDomains=${["switch"]}
+          .entityFilter=${(entity) => {
+            // Filter for alarm clock entities
+            return (
+              entity.entity_id.includes("alarm") ||
+              entity.attributes?.alarm_id !== undefined
+            );
+          }}
+          @value-changed=${this._valueChanged}
           allow-custom-entity
         ></ha-entity-picker>
+        <div class="description">
+          Select an alarm clock switch entity
+        </div>
       </div>
 
       <div class="form-row">
-        <label>Title</label>
         <ha-textfield
-          .value="${this._config.title || ""}"
-          @input="${this._titleChanged}"
+          label="Card Title"
+          .value=${this._title}
+          .configValue=${"title"}
+          @input=${this._valueChangedText}
         ></ha-textfield>
       </div>
 
       <ha-formfield label="Show Next Alarm">
         <ha-switch
-          .checked="${this._config.show_next_alarm !== false}"
-          @change="${this._showNextAlarmChanged}"
+          .checked=${this._show_next_alarm}
+          .configValue=${"show_next_alarm"}
+          @change=${this._valueChangedBool}
         ></ha-switch>
       </ha-formfield>
 
       <ha-formfield label="Compact Mode">
         <ha-switch
-          .checked="${this._config.compact_mode === true}"
-          @change="${this._compactModeChanged}"
+          .checked=${this._compact_mode}
+          .configValue=${"compact_mode"}
+          @change=${this._valueChangedBool}
         ></ha-switch>
       </ha-formfield>
     `;
   }
 
-  _entityChanged(e) {
-    this._updateConfig("entity", e.detail.value);
+  _valueChanged(ev) {
+    if (!this._config || !this.hass) {
+      return;
+    }
+    const target = ev.target;
+    const value = ev.detail?.value ?? target.value;
+    const configValue = target.configValue;
+
+    if (configValue && this._config[configValue] !== value) {
+      this._config = {
+        ...this._config,
+        [configValue]: value,
+      };
+      this._fireConfigChanged();
+    }
   }
 
-  _titleChanged(e) {
-    this._updateConfig("title", e.target.value);
+  _valueChangedText(ev) {
+    if (!this._config || !this.hass) {
+      return;
+    }
+    const target = ev.target;
+    const value = target.value;
+    const configValue = target.configValue;
+
+    if (configValue && this._config[configValue] !== value) {
+      this._config = {
+        ...this._config,
+        [configValue]: value,
+      };
+      this._fireConfigChanged();
+    }
   }
 
-  _showNextAlarmChanged(e) {
-    this._updateConfig("show_next_alarm", e.target.checked);
+  _valueChangedBool(ev) {
+    if (!this._config || !this.hass) {
+      return;
+    }
+    const target = ev.target;
+    const value = target.checked;
+    const configValue = target.configValue;
+
+    if (configValue && this._config[configValue] !== value) {
+      this._config = {
+        ...this._config,
+        [configValue]: value,
+      };
+      this._fireConfigChanged();
+    }
   }
 
-  _compactModeChanged(e) {
-    this._updateConfig("compact_mode", e.target.checked);
-  }
-
-  _updateConfig(key, value) {
-    const newConfig = { ...this._config, [key]: value };
-    this._config = newConfig;
-
+  _fireConfigChanged() {
     const event = new CustomEvent("config-changed", {
-      detail: { config: newConfig },
+      detail: { config: this._config },
       bubbles: true,
       composed: true,
     });
