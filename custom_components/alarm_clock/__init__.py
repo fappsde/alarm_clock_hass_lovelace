@@ -7,12 +7,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.lovelace.resources import ResourceStorageCollection
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+
+# Try importing StaticPathConfig for HA 2024.6+, fall back for older versions
+try:
+    from homeassistant.components.http import StaticPathConfig
+    HAS_STATIC_PATH_CONFIG = True
+except ImportError:
+    HAS_STATIC_PATH_CONFIG = False
 
 from .const import DOMAIN
 from .coordinator import AlarmClockCoordinator
@@ -43,9 +49,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     # Register the static path for the card JavaScript file
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
-    )
+    # Use new API (HA 2024.6+) or fall back to old API
+    if HAS_STATIC_PATH_CONFIG:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
+        )
+    else:
+        # Fallback for older Home Assistant versions
+        hass.http.register_static_path(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)
     _LOGGER.debug("Registered static path for alarm clock card: %s", CARD_JS_URL)
 
     # Register the Lovelace resource
