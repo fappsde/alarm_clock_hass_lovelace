@@ -518,8 +518,23 @@ class AlarmClockCard extends LitElement {
   _getAlarms() {
     const alarms = [];
 
+    // Get the entry_id of the configured entity to filter by device
+    const configEntity = this.hass.states[this.config.entity];
+    if (!configEntity) {
+      return alarms;
+    }
+
+    // Get entry_id from the configured entity
+    const configEntryId = configEntity.attributes.entry_id;
+
+    // If no entry_id, we can't filter properly, so return empty
+    if (!configEntryId) {
+      console.warn("No entry_id found for configured entity:", this.config.entity);
+      return alarms;
+    }
+
     // Find all switch entities that have alarm_id attribute (alarm enable switches)
-    // These are the main alarm entities created by the integration
+    // and belong to the same alarm clock device (same entry_id)
     Object.keys(this.hass.states).forEach((key) => {
       if (key.startsWith("switch.")) {
         const state = this.hass.states[key];
@@ -529,11 +544,14 @@ class AlarmClockCard extends LitElement {
           state.attributes.alarm_id !== undefined &&
           !key.endsWith("_skip_next")
         ) {
-          alarms.push({
-            entity_id: key,
-            state: state,
-            attributes: state.attributes,
-          });
+          // Filter by device: only include alarms with matching entry_id
+          if (state.attributes.entry_id === configEntryId) {
+            alarms.push({
+              entity_id: key,
+              state: state,
+              attributes: state.attributes,
+            });
+          }
         }
       }
     });
@@ -888,6 +906,14 @@ class AlarmClockCard extends LitElement {
   }
 
   async _openAlarmSettings() {
+    // Get the entry_id from the configured entity
+    const configEntity = this.hass.states[this.config.entity];
+    if (!configEntity || !configEntity.attributes.entry_id) {
+      console.error("Cannot create alarm: No entry_id found for configured entity");
+      alert("Cannot create alarm. Please check the card configuration.");
+      return;
+    }
+
     // Create a new alarm with default settings
     // Generate a unique name based on current time
     const now = new Date();
@@ -899,6 +925,7 @@ class AlarmClockCard extends LitElement {
         time: "07:00",
         days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
         enabled: false, // Start disabled so user can configure it first
+        entry_id: configEntity.attributes.entry_id,
       });
 
       // Haptic feedback

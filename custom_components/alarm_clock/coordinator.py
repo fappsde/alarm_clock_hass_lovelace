@@ -1177,6 +1177,7 @@ class AlarmClockCoordinator:
                     int
                 ),
                 vol.Optional(CONF_MAX_SNOOZE_COUNT, default=3): vol.Coerce(int),
+                vol.Optional("entry_id"): cv.string,
             }
         )
 
@@ -1240,6 +1241,22 @@ class AlarmClockCoordinator:
 
         async def handle_create_alarm(call: ServiceCall) -> None:
             """Handle create alarm service call."""
+            # Check if entry_id is provided and matches this coordinator
+            target_entry_id = call.data.get("entry_id")
+            if target_entry_id and target_entry_id != self.entry.entry_id:
+                # This call is not for this coordinator
+                return
+
+            # If no entry_id provided and there are multiple coordinators,
+            # only the first one will handle it (backward compatibility)
+            if not target_entry_id and len(self.hass.data[DOMAIN]) > 2:
+                # Check if this is the first coordinator (excluding _register_resource)
+                coordinators = [
+                    k for k in self.hass.data[DOMAIN].keys() if k != "_register_resource"
+                ]
+                if coordinators and coordinators[0] != self.entry.entry_id:
+                    return
+
             import uuid
 
             alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
