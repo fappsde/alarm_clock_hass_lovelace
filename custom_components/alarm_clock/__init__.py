@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.lovelace.resources import ResourceStorageCollection
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -19,6 +22,10 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Path to the card JavaScript file
+CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
+CARD_JS_PATH = Path(__file__).parent / "alarm-clock-card.js"
+
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.SENSOR,
@@ -30,12 +37,67 @@ PLATFORMS: list[Platform] = [
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Alarm Clock component."""
     hass.data.setdefault(DOMAIN, {})
+
+    # Register the static path for the card JavaScript file
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
+    )
+    _LOGGER.debug("Registered static path for alarm clock card: %s", CARD_JS_URL)
+
+    # Register the Lovelace resource
+    await _async_register_lovelace_resource(hass)
+
     return True
+
+
+async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
+    """Register the alarm clock card as a Lovelace resource."""
+    resource_url = CARD_JS_URL
+
+    # Check if lovelace resources component is available
+    if "lovelace" not in hass.data:
+        _LOGGER.debug("Lovelace not yet loaded, will register resource later")
+        # Store flag to register resource when first entry is set up
+        hass.data[DOMAIN]["_register_resource"] = True
+        return
+
+    try:
+        # Get the resources collection
+        resources: ResourceStorageCollection | None = hass.data["lovelace"].get(
+            "resources"
+        )
+
+        if resources is None:
+            _LOGGER.debug("Lovelace resources not available (YAML mode?)")
+            return
+
+        # Check if resource is already registered
+        for resource in resources.async_items():
+            if resource.get("url") == resource_url:
+                _LOGGER.debug("Alarm clock card resource already registered")
+                return
+
+        # Register the resource
+        await resources.async_create_item({"res_type": "module", "url": resource_url})
+        _LOGGER.info("Registered alarm clock card as Lovelace resource: %s", resource_url)
+
+    except Exception as err:
+        _LOGGER.warning("Could not auto-register Lovelace resource: %s", err)
+        _LOGGER.info(
+            "Please manually add the following to your Lovelace resources: "
+            "URL: %s, Type: JavaScript Module",
+            resource_url,
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Alarm Clock from a config entry."""
     _LOGGER.debug("Setting up Alarm Clock integration: %s", entry.entry_id)
+
+    # Try to register Lovelace resource if not done during async_setup
+    if hass.data[DOMAIN].get("_register_resource"):
+        hass.data[DOMAIN].pop("_register_resource", None)
+        await _async_register_lovelace_resource(hass)
 
     try:
         # Initialize store for persistent data
