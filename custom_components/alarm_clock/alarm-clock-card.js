@@ -36,6 +36,9 @@ class AlarmClockCard extends LitElement {
       _expanded: { type: Boolean },
       _editMode: { type: Boolean },
       _editingAlarm: { type: Object },
+      _viewMode: { type: String },
+      _selectedAlarmId: { type: String },
+      _showTimePicker: { type: Boolean },
     };
   }
 
@@ -44,6 +47,9 @@ class AlarmClockCard extends LitElement {
     this._expanded = false;
     this._editMode = false;
     this._editingAlarm = null;
+    this._viewMode = "list"; // "list" or "editor"
+    this._selectedAlarmId = null;
+    this._showTimePicker = false;
   }
 
   static getConfigElement() {
@@ -432,6 +438,267 @@ class AlarmClockCard extends LitElement {
           font-size: 2.5em;
         }
       }
+
+      /* View mode toggle */
+      .mode-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .mode-toggle-button {
+        background: transparent;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 8px;
+        padding: 4px 8px;
+        cursor: pointer;
+        color: var(--alarm-text-secondary);
+        transition: all 0.2s ease;
+      }
+
+      .mode-toggle-button:hover {
+        background: var(--alarm-primary-color);
+        color: white;
+        border-color: var(--alarm-primary-color);
+      }
+
+      .mode-toggle-button.active {
+        background: var(--alarm-primary-color);
+        color: white;
+        border-color: var(--alarm-primary-color);
+      }
+
+      /* Editor mode layout */
+      .editor-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .editor-section {
+        background: var(--alarm-card-background);
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .editor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .editor-time-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .time-picker-button {
+        background: var(--alarm-primary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s ease;
+      }
+
+      .time-picker-button:hover {
+        filter: brightness(1.1);
+        transform: scale(1.02);
+      }
+
+      /* Horizontal alarm list */
+      .alarms-horizontal-container {
+        overflow-x: auto;
+        overflow-y: hidden;
+        display: flex;
+        gap: 12px;
+        padding: 4px;
+        scrollbar-width: thin;
+      }
+
+      .alarms-horizontal-container::-webkit-scrollbar {
+        height: 6px;
+      }
+
+      .alarms-horizontal-container::-webkit-scrollbar-track {
+        background: var(--divider-color, #e0e0e0);
+        border-radius: 3px;
+      }
+
+      .alarms-horizontal-container::-webkit-scrollbar-thumb {
+        background: var(--alarm-primary-color);
+        border-radius: 3px;
+      }
+
+      /* Compact alarm card */
+      .alarm-compact {
+        min-width: 120px;
+        max-width: 120px;
+        background: var(--alarm-card-background);
+        border: 2px solid var(--divider-color, #e0e0e0);
+        border-radius: 12px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .alarm-compact:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .alarm-compact.selected {
+        border-color: var(--alarm-primary-color);
+        box-shadow: 0 0 0 2px var(--alarm-primary-color);
+      }
+
+      .alarm-compact.enabled {
+        background: linear-gradient(135deg, var(--alarm-primary-color) 0%, transparent 100%);
+        border-color: var(--alarm-primary-color);
+      }
+
+      .alarm-compact.disabled {
+        opacity: 0.6;
+      }
+
+      .alarm-compact-time {
+        font-size: 1.5em;
+        font-weight: 300;
+        color: var(--alarm-text-primary);
+      }
+
+      .alarm-compact-days {
+        display: flex;
+        gap: 2px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .alarm-compact-day {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6em;
+        font-weight: 500;
+      }
+
+      .alarm-compact-day.active {
+        background: var(--alarm-primary-color);
+        color: white;
+      }
+
+      .alarm-compact-day.inactive {
+        background: var(--disabled-color, #bdbdbd);
+        color: var(--alarm-text-secondary);
+        opacity: 0.4;
+      }
+
+      /* Time picker dialog */
+      .time-picker-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+      }
+
+      .time-picker-dialog {
+        background: var(--alarm-card-background);
+        border-radius: 16px;
+        padding: 24px;
+        min-width: 300px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      .time-picker-header {
+        font-size: 1.2em;
+        font-weight: 500;
+        margin-bottom: 16px;
+        color: var(--alarm-text-primary);
+      }
+
+      .time-picker-inputs {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+      }
+
+      .time-picker-input {
+        width: 80px;
+        height: 60px;
+        font-size: 2em;
+        text-align: center;
+        border: 2px solid var(--divider-color, #e0e0e0);
+        border-radius: 8px;
+        background: var(--alarm-card-background);
+        color: var(--alarm-text-primary);
+      }
+
+      .time-picker-input:focus {
+        outline: none;
+        border-color: var(--alarm-primary-color);
+      }
+
+      .time-picker-separator {
+        font-size: 2em;
+        font-weight: 300;
+        color: var(--alarm-text-primary);
+      }
+
+      .time-picker-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .time-picker-button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9em;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .time-picker-button.cancel {
+        background: transparent;
+        color: var(--alarm-text-secondary);
+      }
+
+      .time-picker-button.cancel:hover {
+        background: var(--divider-color, #e0e0e0);
+      }
+
+      .time-picker-button.confirm {
+        background: var(--alarm-primary-color);
+        color: white;
+      }
+
+      .time-picker-button.confirm:hover {
+        filter: brightness(1.1);
+      }
     `;
   }
 
@@ -482,36 +749,111 @@ class AlarmClockCard extends LitElement {
       <ha-card class="${isCompact ? "compact" : ""}">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          ${this.config.show_next_alarm && nextAlarmEntity
-            ? html`
-                <div class="next-alarm">
-                  Next:
-                  <span class="next-alarm-time">
-                    ${this._formatNextAlarm(nextAlarmEntity)}
-                  </span>
-                </div>
-              `
-            : ""}
+          <div class="mode-toggle">
+            ${this.config.show_next_alarm && nextAlarmEntity && this._viewMode === "list"
+              ? html`
+                  <div class="next-alarm">
+                    Next:
+                    <span class="next-alarm-time">
+                      ${this._formatNextAlarm(nextAlarmEntity)}
+                    </span>
+                  </div>
+                `
+              : ""}
+            <button
+              class="mode-toggle-button ${this._viewMode === "list" ? "active" : ""}"
+              @click="${() => this._setViewMode("list")}"
+              title="List View"
+            >
+              <ha-icon icon="mdi:view-list"></ha-icon>
+            </button>
+            <button
+              class="mode-toggle-button ${this._viewMode === "editor" ? "active" : ""}"
+              @click="${() => this._setViewMode("editor")}"
+              title="Editor View"
+            >
+              <ha-icon icon="mdi:pencil"></ha-icon>
+            </button>
+          </div>
         </div>
 
-        <div class="alarms-container">
-          ${alarms.length > 0
-            ? alarms.map((alarm) => this._renderAlarm(alarm))
-            : html` <div class="no-alarms">No alarms configured</div> `}
-        </div>
+        ${this._viewMode === "list"
+          ? this._renderListMode(alarms, isCompact)
+          : this._renderEditorMode(alarms)}
 
-        ${!isCompact
-          ? html`
-              <button
-                class="add-alarm-btn"
-                @click="${() => this._openAlarmSettings()}"
-              >
-                <ha-icon icon="mdi:plus"></ha-icon>
-                Add Alarm
-              </button>
-            `
-          : ""}
+        ${this._showTimePicker ? this._renderTimePicker() : ""}
       </ha-card>
+    `;
+  }
+
+  _setViewMode(mode) {
+    this._viewMode = mode;
+    // Select first alarm in editor mode
+    if (mode === "editor" && !this._selectedAlarmId && alarms.length > 0) {
+      this._selectedAlarmId = this._getAlarms()[0]?.attributes?.alarm_id;
+    }
+  }
+
+  _renderListMode(alarms, isCompact) {
+    return html`
+      <div class="alarms-container">
+        ${alarms.length > 0
+          ? alarms.map((alarm) => this._renderAlarm(alarm))
+          : html` <div class="no-alarms">No alarms configured</div> `}
+      </div>
+
+      ${!isCompact
+        ? html`
+            <button
+              class="add-alarm-btn"
+              @click="${() => this._openAlarmSettings()}"
+            >
+              <ha-icon icon="mdi:plus"></ha-icon>
+              Add Alarm
+            </button>
+          `
+        : ""}
+    `;
+  }
+
+  _renderEditorMode(alarms) {
+    if (alarms.length === 0) {
+      return html`
+        <div class="no-alarms">No alarms configured</div>
+        <button
+          class="add-alarm-btn"
+          @click="${() => this._openAlarmSettings()}"
+        >
+          <ha-icon icon="mdi:plus"></ha-icon>
+          Add Alarm
+        </button>
+      `;
+    }
+
+    // Ensure we have a selected alarm
+    if (!this._selectedAlarmId && alarms.length > 0) {
+      this._selectedAlarmId = alarms[0].attributes.alarm_id;
+    }
+
+    const selectedAlarm = alarms.find(
+      (a) => a.attributes.alarm_id === this._selectedAlarmId
+    );
+
+    return html`
+      <div class="editor-layout">
+        ${selectedAlarm ? this._renderAlarmEditor(selectedAlarm) : ""}
+
+        <div class="alarms-horizontal-container">
+          ${alarms.map((alarm) => this._renderAlarmCompact(alarm))}
+          <div
+            class="alarm-compact"
+            style="border-style: dashed;"
+            @click="${() => this._openAlarmSettings()}"
+          >
+            <ha-icon icon="mdi:plus" style="font-size: 2em; opacity: 0.5;"></ha-icon>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -905,6 +1247,294 @@ class AlarmClockCard extends LitElement {
     }
   }
 
+  _renderAlarmCompact(alarm) {
+    const attrs = alarm.attributes;
+    const isEnabled = alarm.state.state === "on";
+    const isSelected = attrs.alarm_id === this._selectedAlarmId;
+    const days = attrs.days || [];
+    const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
+    const dayNames = [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ];
+
+    return html`
+      <div
+        class="alarm-compact ${isEnabled ? "enabled" : "disabled"} ${isSelected ? "selected" : ""}"
+        @click="${() => this._selectAlarm(attrs.alarm_id)}"
+      >
+        <div class="alarm-compact-time">${attrs.alarm_time || "00:00"}</div>
+        <div class="alarm-compact-days">
+          ${dayNames.map(
+            (day, index) => html`
+              <div class="alarm-compact-day ${days.includes(day) ? "active" : "inactive"}">
+                ${dayLabels[index]}
+              </div>
+            `
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  _selectAlarm(alarmId) {
+    this._selectedAlarmId = alarmId;
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+  }
+
+  _renderAlarmEditor(alarm) {
+    const attrs = alarm.attributes;
+    const state = attrs.alarm_state || "armed";
+    const isRinging = state === "ringing";
+    const isSnoozed = state === "snoozed";
+    const isPreAlarm = state === "pre_alarm";
+    const isEnabled = alarm.state.state === "on";
+    const skipNext = attrs.skip_next || false;
+    const days = attrs.days || [];
+    const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
+    const dayNames = [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ];
+
+    return html`
+      <div class="editor-section">
+        <div class="editor-header">
+          <div class="editor-time-container">
+            <div class="alarm-time" style="cursor: default;">
+              ${attrs.alarm_time || "00:00"}
+              ${isRinging
+                ? html`<span class="status-badge ringing">Ringing</span>`
+                : ""}
+              ${isSnoozed
+                ? html`<span class="status-badge snoozed">Snoozed</span>`
+                : ""}
+              ${isPreAlarm
+                ? html`<span class="status-badge pre-alarm">Pre-alarm</span>`
+                : ""}
+              ${skipNext && !isRinging && !isSnoozed
+                ? html`<span class="status-badge skip">Skip</span>`
+                : ""}
+            </div>
+            <button
+              class="time-picker-button"
+              @click="${() => this._openTimePicker(alarm)}"
+            >
+              <ha-icon icon="mdi:clock-edit"></ha-icon>
+              Set Time
+            </button>
+          </div>
+          <ha-switch
+            class="alarm-toggle"
+            .checked="${isEnabled}"
+            @change="${(e) => this._toggleAlarm(alarm, e.target.checked)}"
+          ></ha-switch>
+        </div>
+
+        <div class="alarm-name">${attrs.alarm_name || "Alarm"}</div>
+        ${attrs.next_trigger
+          ? html`
+              <div class="countdown">
+                ${this._formatCountdown(attrs.next_trigger)}
+              </div>
+            `
+          : ""}
+
+        <div class="time-adjuster">
+          <button
+            class="time-adjust-btn"
+            @click="${() => this._adjustTime(alarm, -5)}"
+          >
+            -5m
+          </button>
+          <button
+            class="time-adjust-btn"
+            @click="${() => this._adjustTime(alarm, 5)}"
+          >
+            +5m
+          </button>
+          <button
+            class="time-adjust-btn"
+            @click="${() => this._adjustTime(alarm, 10)}"
+          >
+            +10m
+          </button>
+          <button
+            class="time-adjust-btn"
+            @click="${() => this._adjustTime(alarm, 60)}"
+          >
+            +1h
+          </button>
+        </div>
+
+        <div class="days-container">
+          ${dayNames.map(
+            (day, index) => html`
+              <div
+                class="day-pill ${days.includes(day) ? "active" : "inactive"}"
+                @click="${() => this._toggleDay(alarm, day, days)}"
+              >
+                ${dayLabels[index]}
+              </div>
+            `
+          )}
+        </div>
+
+        ${isRinging || isSnoozed
+          ? html`
+              <div class="ringing-actions">
+                ${isSnoozed
+                  ? html`
+                      <div class="snooze-info">
+                        Snooze ${attrs.snooze_count}/${attrs.max_snooze_count}
+                        ${attrs.snooze_end_time
+                          ? ` - ${this._formatSnoozeEnd(attrs.snooze_end_time)}`
+                          : ""}
+                      </div>
+                    `
+                  : ""}
+                ${attrs.snooze_count < attrs.max_snooze_count
+                  ? html`
+                      <button
+                        class="action-button snooze"
+                        @click="${() => this._snoozeAlarm(alarm)}"
+                      >
+                        <ha-icon icon="mdi:alarm-snooze"></ha-icon>
+                        Snooze
+                      </button>
+                    `
+                  : ""}
+                <button
+                  class="action-button dismiss"
+                  @click="${() => this._dismissAlarm(alarm)}"
+                >
+                  <ha-icon icon="mdi:alarm-off"></ha-icon>
+                  Dismiss
+                </button>
+              </div>
+            `
+          : html`
+              <div class="alarm-actions">
+                <button
+                  class="action-button skip"
+                  @click="${() => this._toggleSkip(alarm, !skipNext)}"
+                >
+                  <ha-icon
+                    icon="${skipNext ? "mdi:skip-next-circle" : "mdi:skip-next"}"
+                  ></ha-icon>
+                  ${skipNext ? "Unskip" : "Skip Next"}
+                </button>
+              </div>
+            `}
+      </div>
+    `;
+  }
+
+  _openTimePicker(alarm) {
+    this._timePickerAlarm = alarm;
+    this._showTimePicker = true;
+  }
+
+  _renderTimePicker() {
+    if (!this._timePickerAlarm) return html``;
+
+    const currentTime = this._timePickerAlarm.attributes.alarm_time || "07:00";
+    const [hours, minutes] = currentTime.split(":");
+
+    return html`
+      <div class="time-picker-overlay" @click="${(e) => {
+        if (e.target === e.currentTarget) this._closeTimePicker();
+      }}">
+        <div class="time-picker-dialog">
+          <div class="time-picker-header">Set Alarm Time</div>
+          <div class="time-picker-inputs">
+            <input
+              type="number"
+              class="time-picker-input"
+              id="hours-input"
+              min="0"
+              max="23"
+              .value="${hours}"
+              @input="${(e) => this._validateTimeInput(e, 23)}"
+            />
+            <span class="time-picker-separator">:</span>
+            <input
+              type="number"
+              class="time-picker-input"
+              id="minutes-input"
+              min="0"
+              max="59"
+              .value="${minutes}"
+              @input="${(e) => this._validateTimeInput(e, 59)}"
+            />
+          </div>
+          <div class="time-picker-actions">
+            <button
+              class="time-picker-button cancel"
+              @click="${() => this._closeTimePicker()}"
+            >
+              Cancel
+            </button>
+            <button
+              class="time-picker-button confirm"
+              @click="${() => this._confirmTimePicker()}"
+            >
+              Set Time
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _validateTimeInput(e, max) {
+    let value = parseInt(e.target.value) || 0;
+    if (value < 0) value = 0;
+    if (value > max) value = max;
+    e.target.value = value.toString().padStart(2, "0");
+  }
+
+  _closeTimePicker() {
+    this._showTimePicker = false;
+    this._timePickerAlarm = null;
+  }
+
+  _confirmTimePicker() {
+    const hoursInput = this.shadowRoot.getElementById("hours-input");
+    const minutesInput = this.shadowRoot.getElementById("minutes-input");
+
+    if (!hoursInput || !minutesInput) return;
+
+    const hours = hoursInput.value.padStart(2, "0");
+    const minutes = minutesInput.value.padStart(2, "0");
+    const newTime = `${hours}:${minutes}`;
+
+    this.hass.callService("alarm_clock", "set_time", {
+      entity_id: this._timePickerAlarm.entity_id,
+      alarm_time: newTime,
+    });
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+
+    this._closeTimePicker();
+  }
+
   async _openAlarmSettings() {
     // Get the entry_id from the configured entity
     const configEntity = this.hass.states[this.config.entity];
@@ -931,6 +1561,17 @@ class AlarmClockCard extends LitElement {
       // Haptic feedback
       if (navigator.vibrate) {
         navigator.vibrate(50);
+      }
+
+      // In editor mode, select the newly created alarm
+      if (this._viewMode === "editor") {
+        // Wait a bit for the alarm to be created
+        setTimeout(() => {
+          const alarms = this._getAlarms();
+          if (alarms.length > 0) {
+            this._selectedAlarmId = alarms[alarms.length - 1].attributes.alarm_id;
+          }
+        }, 500);
       }
     } catch (error) {
       console.error("Failed to create alarm:", error);
