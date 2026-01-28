@@ -143,12 +143,12 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
         # Provide default time of 7:00 AM
         default_time = {"hours": 7, "minutes": 0}
-        
+
         return self.async_show_form(
             step_id="add_alarm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ALARM_NAME, default=""): cv.string,
+                    vol.Required(CONF_ALARM_NAME): cv.string,
                     vol.Required(CONF_ALARM_TIME, default=default_time): selector.TimeSelector(),
                     vol.Required(CONF_DAYS, default=WEEKDAYS[:5]): _weekday_selector(),
                     vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
@@ -212,7 +212,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
             # Clear the alarm data after successful submission
             self._alarm_data = {}
-            
+
             return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
