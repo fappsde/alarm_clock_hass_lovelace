@@ -303,8 +303,8 @@ class AlarmClockCoordinator:
         # Schedule new callback
         self._scheduled_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_add_job(
-                self._async_handle_alarm_trigger, aid
+            lambda now, aid=alarm_id: self.hass.loop.call_soon_threadsafe(
+                lambda: self.hass.async_create_task(self._async_handle_alarm_trigger(aid))
             ),
             next_trigger,
         )
@@ -411,8 +411,8 @@ class AlarmClockCoordinator:
 
         self._pre_alarm_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_add_job(
-                self._async_handle_pre_alarm, aid
+            lambda now, aid=alarm_id: self.hass.loop.call_soon_threadsafe(
+                lambda: self.hass.async_create_task(self._async_handle_pre_alarm(aid))
             ),
             trigger_time,
         )
@@ -452,8 +452,8 @@ class AlarmClockCoordinator:
 
         self._snooze_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_add_job(
-                self._async_handle_snooze_end, aid
+            lambda now, aid=alarm_id: self.hass.loop.call_soon_threadsafe(
+                lambda: self.hass.async_create_task(self._async_handle_snooze_end(aid))
             ),
             end_time,
         )
@@ -478,8 +478,8 @@ class AlarmClockCoordinator:
 
         self._auto_dismiss_callbacks[alarm_id] = async_track_point_in_time(
             self.hass,
-            lambda now, aid=alarm_id: self.hass.async_add_job(
-                self._async_handle_auto_dismiss, aid
+            lambda now, aid=alarm_id: self.hass.loop.call_soon_threadsafe(
+                lambda: self.hass.async_create_task(self._async_handle_auto_dismiss(aid))
             ),
             dismiss_time,
         )
@@ -949,7 +949,9 @@ class AlarmClockCoordinator:
 
         self._health_check_callback = async_track_point_in_time(
             self.hass,
-            lambda now: self.hass.async_add_job(self._async_run_health_check),
+            lambda now: self.hass.loop.call_soon_threadsafe(
+                lambda: self.hass.async_create_task(self._async_run_health_check())
+            ),
             next_check,
         )
 
@@ -1121,7 +1123,8 @@ class AlarmClockCoordinator:
         """Notify all registered callbacks of an update."""
         for update_callback in self._update_callbacks:
             try:
-                update_callback()
+                # Use call_soon_threadsafe to ensure callbacks are executed in the event loop
+                self.hass.loop.call_soon_threadsafe(update_callback)
             except Exception:
                 _LOGGER.exception("Error in update callback")
 
@@ -1300,12 +1303,11 @@ class AlarmClockCoordinator:
     def _entity_id_to_alarm_id(self, entity_id: str) -> str | None:
         """Convert entity ID to alarm ID."""
         # Try to get the alarm_id from the entity's attributes
-        if entity_id in self.hass.states:
-            entity = self.hass.states.get(entity_id)
-            if entity and hasattr(entity, 'attributes'):
-                alarm_id = entity.attributes.get('alarm_id')
-                if alarm_id and alarm_id in self._alarms:
-                    return alarm_id
+        entity = self.hass.states.get(entity_id)
+        if entity and hasattr(entity, 'attributes'):
+            alarm_id = entity.attributes.get('alarm_id')
+            if alarm_id and alarm_id in self._alarms:
+                return alarm_id
 
         # Fallback: try to match by entity_id ending
         for alarm_id in self._alarms:
