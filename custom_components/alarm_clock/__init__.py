@@ -16,6 +16,7 @@ from homeassistant.helpers import device_registry as dr
 # Try importing StaticPathConfig for HA 2024.6+, fall back for older versions
 try:
     from homeassistant.components.http import StaticPathConfig
+
     HAS_STATIC_PATH_CONFIG = True
 except ImportError:
     HAS_STATIC_PATH_CONFIG = False

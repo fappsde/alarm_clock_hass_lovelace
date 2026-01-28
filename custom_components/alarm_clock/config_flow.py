@@ -135,7 +135,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     if not (0 <= hour <= 23 and 0 <= minute <= 59):
                         raise ValueError("Out of range")
             except (ValueError, AttributeError, TypeError) as err:
-                _LOGGER.debug("Time validation failed: %s (value: %s)", err, user_input.get(CONF_ALARM_TIME))
+                _LOGGER.debug(
+                    "Time validation failed: %s (value: %s)", err, user_input.get(CONF_ALARM_TIME)
+                )
                 errors[CONF_ALARM_TIME] = "invalid_time"
 
             if not errors:
