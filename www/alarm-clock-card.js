@@ -887,15 +887,28 @@ class AlarmClockCard extends LitElement {
     }
   }
 
-  _openAlarmSettings() {
-    // Navigate to config flow to add alarm
-    // This would typically open the options flow
-    const event = new CustomEvent("hass-more-info", {
-      bubbles: true,
-      composed: true,
-      detail: { entityId: this.config.entity },
-    });
-    this.dispatchEvent(event);
+  async _openAlarmSettings() {
+    // Create a new alarm with default settings
+    // Generate a unique name based on current time
+    const now = new Date();
+    const alarmName = `Alarm ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    try {
+      await this.hass.callService("alarm_clock", "create_alarm", {
+        name: alarmName,
+        time: "07:00",
+        days: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        enabled: false, // Start disabled so user can configure it first
+      });
+
+      // Haptic feedback
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    } catch (error) {
+      console.error("Failed to create alarm:", error);
+      alert("Failed to create alarm. Please check the logs.");
+    }
   }
 }
 
