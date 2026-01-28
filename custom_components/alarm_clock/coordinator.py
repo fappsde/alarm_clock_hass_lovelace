@@ -1304,8 +1304,8 @@ class AlarmClockCoordinator:
         """Convert entity ID to alarm ID."""
         # Try to get the alarm_id from the entity's attributes
         entity = self.hass.states.get(entity_id)
-        if entity and hasattr(entity, 'attributes'):
-            alarm_id = entity.attributes.get('alarm_id')
+        if entity and hasattr(entity, "attributes"):
+            alarm_id = entity.attributes.get("alarm_id")
             if alarm_id and alarm_id in self._alarms:
                 return alarm_id
 
