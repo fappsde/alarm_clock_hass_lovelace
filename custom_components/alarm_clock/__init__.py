@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from homeassistant.components.http import StaticPathConfig
+import homeassistant.helpers.config_validation as cv
 from homeassistant.components.lovelace.resources import ResourceStorageCollection
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from homeassistant.helpers.typing import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+# Config schema for the integration
+CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 # Path to the card JavaScript file
 CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
@@ -39,9 +42,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     # Register the static path for the card JavaScript file
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
-    )
+    await hass.http.async_register_static_path(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)
     _LOGGER.debug("Registered static path for alarm clock card: %s", CARD_JS_URL)
 
     # Register the Lovelace resource
@@ -63,9 +64,7 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
 
     try:
         # Get the resources collection
-        resources: ResourceStorageCollection | None = hass.data["lovelace"].get(
-            "resources"
-        )
+        resources: ResourceStorageCollection | None = hass.data["lovelace"].get("resources")
 
         if resources is None:
             _LOGGER.debug("Lovelace resources not available (YAML mode?)")
