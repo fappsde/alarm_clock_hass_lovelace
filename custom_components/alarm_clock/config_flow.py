@@ -116,24 +116,26 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Validate time format - TimeSelector can return dict or string
+            # Validate time format - TimeSelector can return dict, "HH:MM", or "HH:MM:SS"
             try:
                 time_value = user_input[CONF_ALARM_TIME]
                 if isinstance(time_value, dict):
-                    # TimeSelector returns dict with hours and minutes
+                    # TimeSelector may return dict with hours and minutes
                     hour = time_value.get("hours", 0)
                     minute = time_value.get("minutes", 0)
                     if not (0 <= hour <= 23 and 0 <= minute <= 59):
                         raise ValueError("Out of range")
                 else:
-                    # String format validation
-                    parts = str(time_value).split(":")
-                    if len(parts) != 2:
+                    # String format validation - handle both "HH:MM" and "HH:MM:SS"
+                    time_str = str(time_value)
+                    parts = time_str.split(":")
+                    if len(parts) < 2:
                         raise ValueError("Invalid format")
                     hour, minute = int(parts[0]), int(parts[1])
                     if not (0 <= hour <= 23 and 0 <= minute <= 59):
                         raise ValueError("Out of range")
-            except (ValueError, AttributeError, TypeError):
+            except (ValueError, AttributeError, TypeError) as err:
+                _LOGGER.debug("Time validation failed: %s (value: %s)", err, user_input.get(CONF_ALARM_TIME))
                 errors[CONF_ALARM_TIME] = "invalid_time"
 
             if not errors:
@@ -175,14 +177,16 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
                 alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
 
-                # Convert time selector output to string
+                # Convert time selector output to HH:MM string
                 time_value = alarm_data[CONF_ALARM_TIME]
                 if isinstance(time_value, dict):
                     time_str = (
                         f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
                     )
                 else:
-                    time_str = str(time_value)
+                    # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
+                    time_parts = str(time_value).split(":")
+                    time_str = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
 
                 new_alarm = AlarmData(
                     alarm_id=alarm_id,
@@ -356,7 +360,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
                 )
             else:
-                alarm.data.time = str(time_value)
+                # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
+                time_parts = str(time_value).split(":")
+                alarm.data.time = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
 
             alarm.data.days = user_input.get(CONF_DAYS, alarm.data.days)
             alarm.data.snooze_duration = user_input.get(
