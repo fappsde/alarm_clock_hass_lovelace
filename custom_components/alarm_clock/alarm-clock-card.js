@@ -76,6 +76,7 @@ class AlarmClockCard extends LitElement {
       title: "Alarm Clock",
       show_next_alarm: true,
       compact_mode: false,
+      view_mode: "list",
     };
   }
 
@@ -86,8 +87,11 @@ class AlarmClockCard extends LitElement {
       title: "Alarm Clock",
       show_next_alarm: true,
       compact_mode: false,
+      view_mode: "list",
       ...config,
     };
+    // Set view mode from config
+    this._viewMode = this.config.view_mode || "list";
   }
 
   getCardSize() {
@@ -749,32 +753,16 @@ class AlarmClockCard extends LitElement {
       <ha-card class="${isCompact ? "compact" : ""}">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          <div class="mode-toggle">
-            ${this.config.show_next_alarm && nextAlarmEntity && this._viewMode === "list"
-              ? html`
-                  <div class="next-alarm">
-                    Next:
-                    <span class="next-alarm-time">
-                      ${this._formatNextAlarm(nextAlarmEntity)}
-                    </span>
-                  </div>
-                `
-              : ""}
-            <button
-              class="mode-toggle-button ${this._viewMode === "list" ? "active" : ""}"
-              @click="${() => this._setViewMode("list")}"
-              title="List View"
-            >
-              <ha-icon icon="mdi:view-list"></ha-icon>
-            </button>
-            <button
-              class="mode-toggle-button ${this._viewMode === "editor" ? "active" : ""}"
-              @click="${() => this._setViewMode("editor")}"
-              title="Editor View"
-            >
-              <ha-icon icon="mdi:pencil"></ha-icon>
-            </button>
-          </div>
+          ${this.config.show_next_alarm && nextAlarmEntity && this._viewMode === "list"
+            ? html`
+                <div class="next-alarm">
+                  Next:
+                  <span class="next-alarm-time">
+                    ${this._formatNextAlarm(nextAlarmEntity)}
+                  </span>
+                </div>
+              `
+            : ""}
         </div>
 
         ${this._viewMode === "list"
@@ -784,14 +772,6 @@ class AlarmClockCard extends LitElement {
         ${this._showTimePicker ? this._renderTimePicker() : ""}
       </ha-card>
     `;
-  }
-
-  _setViewMode(mode) {
-    this._viewMode = mode;
-    // Select first alarm in editor mode
-    if (mode === "editor" && !this._selectedAlarmId && alarms.length > 0) {
-      this._selectedAlarmId = this._getAlarms()[0]?.attributes?.alarm_id;
-    }
   }
 
   _renderListMode(alarms, isCompact) {
@@ -1616,6 +1596,10 @@ class AlarmClockCardEditor extends LitElement {
     return this._config.compact_mode === true;
   }
 
+  get _view_mode() {
+    return this._config.view_mode || "list";
+  }
+
   static get styles() {
     return css`
       .form-row {
@@ -1659,20 +1643,31 @@ class AlarmClockCardEditor extends LitElement {
       return html``;
     }
 
-    // Get alarm clock entities - switches with alarm_id attribute
+    // Get alarm clock entities - switches with alarm_id attribute OR device-level sensors
     const alarmEntities = Object.keys(this.hass.states)
       .filter((entityId) => {
-        if (!entityId.startsWith("switch.")) return false;
         const state = this.hass.states[entityId];
-        // Include entities with alarm_id attribute (excluding skip_next switches)
-        return (
-          state.attributes.alarm_id !== undefined &&
-          !entityId.endsWith("_skip_next")
-        );
+        // Include alarm switches (excluding skip_next switches)
+        if (entityId.startsWith("switch.") &&
+            state.attributes.alarm_id !== undefined &&
+            !entityId.endsWith("_skip_next")) {
+          return true;
+        }
+        // Include device-level sensors (next_alarm and active_alarm_count)
+        if (entityId.startsWith("sensor.") &&
+            state.attributes.entry_id !== undefined &&
+            (entityId.includes("next_alarm") || entityId.includes("active_alarm"))) {
+          return true;
+        }
+        return false;
       })
       .sort();
 
-    // If no alarm entities found, show all switches as fallback
+    // Group entities by type for better organization
+    const deviceSensors = alarmEntities.filter(e => e.startsWith("sensor."));
+    const alarmSwitches = alarmEntities.filter(e => e.startsWith("switch."));
+
+    // If we have device sensors, use those; otherwise use alarm switches
     const hasAlarmEntities = alarmEntities.length > 0;
 
     return html`
@@ -1688,19 +1683,40 @@ class AlarmClockCardEditor extends LitElement {
                 fixedMenuPosition
                 naturalMenuWidth
               >
-                <mwc-list-item value="">-- Select an alarm --</mwc-list-item>
-                ${alarmEntities.map((entityId) => {
-                  const state = this.hass.states[entityId];
-                  const name = state.attributes.friendly_name || entityId;
-                  return html`
-                    <mwc-list-item .value=${entityId}>
-                      ${name}
-                    </mwc-list-item>
-                  `;
-                })}
+                <mwc-list-item value="">-- Select an entity --</mwc-list-item>
+                ${deviceSensors.length > 0
+                  ? html`
+                      <li divider role="separator"></li>
+                      <li disabled>Device-level sensors (recommended)</li>
+                      ${deviceSensors.map((entityId) => {
+                        const state = this.hass.states[entityId];
+                        const name = state.attributes.friendly_name || entityId;
+                        return html`
+                          <mwc-list-item .value=${entityId}>
+                            ${name}
+                          </mwc-list-item>
+                        `;
+                      })}
+                    `
+                  : ""}
+                ${alarmSwitches.length > 0
+                  ? html`
+                      <li divider role="separator"></li>
+                      <li disabled>Individual alarms</li>
+                      ${alarmSwitches.map((entityId) => {
+                        const state = this.hass.states[entityId];
+                        const name = state.attributes.friendly_name || entityId;
+                        return html`
+                          <mwc-list-item .value=${entityId}>
+                            ${name}
+                          </mwc-list-item>
+                        `;
+                      })}
+                    `
+                  : ""}
               </ha-select>
               <div class="description">
-                Select an alarm clock entity created by the integration
+                Select a device-level sensor (recommended) or an individual alarm. Device sensors work even before alarms are created.
               </div>
             `
           : html`
@@ -1744,6 +1760,24 @@ class AlarmClockCardEditor extends LitElement {
           @change=${this._valueChangedBool}
         ></ha-switch>
       </ha-formfield>
+
+      <div class="form-row">
+        <label>View Mode</label>
+        <ha-select
+          .value=${this._view_mode}
+          .configValue=${"view_mode"}
+          @selected=${this._valueChangedSelect}
+          @closed=${(e) => e.stopPropagation()}
+          fixedMenuPosition
+          naturalMenuWidth
+        >
+          <mwc-list-item value="list">List View</mwc-list-item>
+          <mwc-list-item value="editor">Editor View</mwc-list-item>
+        </ha-select>
+        <div class="description">
+          List view shows all alarms in a vertical list. Editor view shows one alarm in detail with compact cards below.
+        </div>
+      </div>
     `;
   }
 

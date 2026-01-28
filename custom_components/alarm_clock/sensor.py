@@ -205,6 +205,7 @@ class NextAlarmSensor(AlarmClockDeviceEntity, SensorEntity):
                     next_alarm = alarm
 
         attrs: dict[str, Any] = {
+            "entry_id": self.entry.entry_id,
             "total_alarms": len(self.coordinator.alarms),
             "enabled_alarms": sum(1 for a in self.coordinator.alarms.values() if a.data.enabled),
         }
@@ -260,6 +261,7 @@ class ActiveAlarmCountSensor(AlarmClockDeviceEntity, SensorEntity):
         ]
 
         return {
+            "entry_id": self.entry.entry_id,
             "ringing": sum(
                 1 for a in self.coordinator.alarms.values() if a.state == AlarmState.RINGING
             ),
