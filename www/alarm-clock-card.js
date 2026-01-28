@@ -517,15 +517,17 @@ class AlarmClockCard extends LitElement {
 
   _getAlarms() {
     const alarms = [];
-    const entityId = this.config.entity;
 
-    // Find all switch entities related to this alarm clock
+    // Find all switch entities that have alarm_id attribute (alarm enable switches)
+    // These are the main alarm entities created by the integration
     Object.keys(this.hass.states).forEach((key) => {
-      if (key.startsWith("switch.") && key.includes("alarm_")) {
+      if (key.startsWith("switch.")) {
         const state = this.hass.states[key];
+        // Check if this is an alarm entity by looking for alarm_id attribute
+        // Also exclude skip_next switches
         if (
-          state.attributes.alarm_id &&
-          !key.includes("skip_next")
+          state.attributes.alarm_id !== undefined &&
+          !key.endsWith("_skip_next")
         ) {
           alarms.push({
             entity_id: key,
@@ -976,39 +978,65 @@ class AlarmClockCardEditor extends LitElement {
       return html``;
     }
 
-    // Get alarm clock related entities for the picker
+    // Get alarm clock entities - switches with alarm_id attribute
     const alarmEntities = Object.keys(this.hass.states)
       .filter((entityId) => {
+        if (!entityId.startsWith("switch.")) return false;
+        const state = this.hass.states[entityId];
+        // Include entities with alarm_id attribute (excluding skip_next switches)
         return (
-          entityId.startsWith("switch.alarm_clock") ||
-          entityId.startsWith("switch.alarm_") ||
-          (entityId.startsWith("switch.") &&
-            this.hass.states[entityId].attributes.alarm_id)
+          state.attributes.alarm_id !== undefined &&
+          !entityId.endsWith("_skip_next")
         );
       })
       .sort();
 
+    // If no alarm entities found, show all switches as fallback
+    const hasAlarmEntities = alarmEntities.length > 0;
+
     return html`
       <div class="form-row">
-        <ha-entity-picker
-          label="Entity (Required)"
-          .hass=${this.hass}
-          .value=${this._entity}
-          .configValue=${"entity"}
-          .includeDomains=${["switch"]}
-          .entityFilter=${(entity) => {
-            // Filter for alarm clock entities
-            return (
-              entity.entity_id.includes("alarm") ||
-              entity.attributes?.alarm_id !== undefined
-            );
-          }}
-          @value-changed=${this._valueChanged}
-          allow-custom-entity
-        ></ha-entity-picker>
-        <div class="description">
-          Select an alarm clock switch entity
-        </div>
+        ${hasAlarmEntities
+          ? html`
+              <ha-select
+                label="Alarm Entity (Required)"
+                .value=${this._entity}
+                .configValue=${"entity"}
+                @selected=${this._valueChangedSelect}
+                @closed=${(e) => e.stopPropagation()}
+                fixedMenuPosition
+                naturalMenuWidth
+              >
+                <mwc-list-item value="">-- Select an alarm --</mwc-list-item>
+                ${alarmEntities.map((entityId) => {
+                  const state = this.hass.states[entityId];
+                  const name = state.attributes.friendly_name || entityId;
+                  return html`
+                    <mwc-list-item .value=${entityId}>
+                      ${name}
+                    </mwc-list-item>
+                  `;
+                })}
+              </ha-select>
+              <div class="description">
+                Select an alarm clock entity created by the integration
+              </div>
+            `
+          : html`
+              <ha-entity-picker
+                label="Entity (Required)"
+                .hass=${this.hass}
+                .value=${this._entity}
+                .configValue=${"entity"}
+                .includeDomains=${["switch"]}
+                @value-changed=${this._valueChanged}
+                allow-custom-entity
+              ></ha-entity-picker>
+              <div class="description">
+                No alarm entities found. Please add alarms via the integration settings first,
+                or select any switch entity.
+              </div>
+            `}
       </div>
 
       <div class="form-row">
@@ -1044,6 +1072,23 @@ class AlarmClockCardEditor extends LitElement {
     }
     const target = ev.target;
     const value = ev.detail?.value ?? target.value;
+    const configValue = target.configValue;
+
+    if (configValue && this._config[configValue] !== value) {
+      this._config = {
+        ...this._config,
+        [configValue]: value,
+      };
+      this._fireConfigChanged();
+    }
+  }
+
+  _valueChangedSelect(ev) {
+    if (!this._config || !this.hass) {
+      return;
+    }
+    const target = ev.target;
+    const value = target.value;
     const configValue = target.configValue;
 
     if (configValue && this._config[configValue] !== value) {
