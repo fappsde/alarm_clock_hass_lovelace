@@ -17,6 +17,17 @@ from .const import (
     CONF_ALARM_TIME,
     CONF_AUTO_DISMISS_TIMEOUT,
     CONF_DAYS,
+    CONF_DEFAULT_SCRIPT_ALARM,
+    CONF_DEFAULT_SCRIPT_FALLBACK,
+    CONF_DEFAULT_SCRIPT_ON_ARM,
+    CONF_DEFAULT_SCRIPT_ON_CANCEL,
+    CONF_DEFAULT_SCRIPT_ON_DISMISS,
+    CONF_DEFAULT_SCRIPT_ON_SKIP,
+    CONF_DEFAULT_SCRIPT_ON_SNOOZE,
+    CONF_DEFAULT_SCRIPT_POST_ALARM,
+    CONF_DEFAULT_SCRIPT_PRE_ALARM,
+    CONF_DEFAULT_SCRIPT_RETRY_COUNT,
+    CONF_DEFAULT_SCRIPT_TIMEOUT,
     CONF_ENABLED,
     CONF_MAX_SNOOZE_COUNT,
     CONF_MISSED_ALARM_GRACE_PERIOD,
@@ -28,12 +39,17 @@ from .const import (
     CONF_SCRIPT_ON_SNOOZE,
     CONF_SCRIPT_POST_ALARM,
     CONF_SCRIPT_PRE_ALARM,
+    CONF_SCRIPT_RETRY_COUNT,
+    CONF_SCRIPT_TIMEOUT,
     CONF_SNOOZE_DURATION,
+    CONF_USE_DEVICE_DEFAULTS,
     CONF_WATCHDOG_TIMEOUT,
     DEFAULT_AUTO_DISMISS_TIMEOUT,
     DEFAULT_MAX_SNOOZE_COUNT,
     DEFAULT_MISSED_ALARM_GRACE_PERIOD,
     DEFAULT_PRE_ALARM_DURATION,
+    DEFAULT_SCRIPT_RETRY_COUNT,
+    DEFAULT_SCRIPT_TIMEOUT,
     DEFAULT_SNOOZE_DURATION,
     DEFAULT_WATCHDOG_TIMEOUT,
     DOMAIN,
@@ -108,7 +124,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
         """Manage the options."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_alarm", "manage_alarms", "global_settings"],
+            menu_options=["add_alarm", "manage_alarms", "default_scripts", "global_settings"],
         )
 
     async def async_step_add_alarm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -207,12 +223,17 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     pre_alarm_duration=alarm_data.get(
                         CONF_PRE_ALARM_DURATION, DEFAULT_PRE_ALARM_DURATION
                     ),
+                    use_device_defaults=alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True),
                     script_pre_alarm=alarm_data.get(CONF_SCRIPT_PRE_ALARM),
                     script_alarm=alarm_data.get(CONF_SCRIPT_ALARM),
                     script_post_alarm=alarm_data.get(CONF_SCRIPT_POST_ALARM),
                     script_on_snooze=alarm_data.get(CONF_SCRIPT_ON_SNOOZE),
                     script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
                     script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
+                    script_timeout=alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
+                    script_retry_count=alarm_data.get(
+                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                    ),
                 )
                 await coordinator.async_add_alarm(new_alarm)
 
@@ -251,6 +272,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                             min=0, max=60, step=1, unit_of_measurement="minutes"
                         )
                     ),
+                    vol.Optional(
+                        CONF_USE_DEVICE_DEFAULTS, default=True
+                    ): selector.BooleanSelector(),
                     vol.Optional(CONF_SCRIPT_PRE_ALARM): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="script")
                     ),
@@ -268,6 +292,18 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(CONF_SCRIPT_FALLBACK): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="script")
+                    ),
+                    vol.Optional(
+                        CONF_SCRIPT_TIMEOUT, default=DEFAULT_SCRIPT_TIMEOUT
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1, max=300, step=1, unit_of_measurement="seconds"
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_SCRIPT_RETRY_COUNT, default=DEFAULT_SCRIPT_RETRY_COUNT
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0, max=10, step=1)
                     ),
                 }
             ),
@@ -422,6 +458,83 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                         selector.NumberSelectorConfig(
                             min=0, max=60, step=1, unit_of_measurement="minutes"
                         )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_default_scripts(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle device-level default scripts configuration."""
+        if user_input is not None:
+            # Save to config entry options
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                options={**self.config_entry.options, **user_input},
+            )
+            return self.async_create_entry(title="", data={})
+
+        # Get current defaults from options
+        current_options = self.config_entry.options
+
+        return self.async_show_form(
+            step_id="default_scripts",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_PRE_ALARM,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_PRE_ALARM),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_ALARM,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ALARM),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_POST_ALARM,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_POST_ALARM),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_ON_SNOOZE,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_SNOOZE),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_ON_DISMISS,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_DISMISS),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_ON_ARM,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_ARM),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_ON_CANCEL,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_CANCEL),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_ON_SKIP,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_SKIP),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_FALLBACK,
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_FALLBACK),
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_TIMEOUT,
+                        default=current_options.get(
+                            CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1, max=300, step=1, unit_of_measurement="seconds"
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_DEFAULT_SCRIPT_RETRY_COUNT,
+                        default=current_options.get(
+                            CONF_DEFAULT_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0, max=10, step=1)
                     ),
                 }
             ),

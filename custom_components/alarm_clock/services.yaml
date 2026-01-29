@@ -119,6 +119,99 @@ set_days:
             - saturday
             - sunday
 
+set_scripts:
+  name: Set Alarm Scripts
+  description: Configure scripts for an alarm
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+    script_pre_alarm:
+      name: Pre-Alarm Script
+      description: Script to run before the alarm (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_alarm:
+      name: Alarm Script
+      description: Main alarm script (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_post_alarm:
+      name: Post-Alarm Script
+      description: Script to run after dismissing the alarm (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_snooze:
+      name: On Snooze Script
+      description: Script to run when alarm is snoozed (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_dismiss:
+      name: On Dismiss Script
+      description: Script to run when alarm is dismissed (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_arm:
+      name: On Arm Script
+      description: Script to run when alarm is armed (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_cancel:
+      name: On Cancel Script
+      description: Script to run when alarm is cancelled (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_skip:
+      name: On Skip Script
+      description: Script to run when alarm is skipped (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_fallback:
+      name: Fallback Script
+      description: Fallback script if main script fails (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_timeout:
+      name: Script Timeout
+      description: Timeout for script execution in seconds (optional)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 300
+          unit_of_measurement: seconds
+    script_retry_count:
+      name: Script Retry Count
+      description: Number of times to retry failed scripts (optional)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10
+
 create_alarm:
   name: Create Alarm
   description: Create a new alarm
@@ -195,6 +288,13 @@ create_alarm:
       required: false
       selector:
         text:
+    use_device_defaults:
+      name: Use Device Defaults
+      description: Use device-level default scripts instead of individual alarm scripts
+      required: false
+      default: true
+      selector:
+        boolean:
 
 delete_alarm:
   name: Delete Alarm

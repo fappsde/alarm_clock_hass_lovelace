@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.4";
+const CARD_VERSION = "1.0.5";
 
 // Log card info
 console.info(
@@ -205,19 +205,24 @@ class AlarmClockCard extends LitElement {
         display: flex;
         gap: 4px;
         margin-top: 12px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        justify-content: space-between;
       }
 
       .day-pill {
-        padding: 4px 8px;
+        flex: 1;
+        padding: 6px 4px;
         border-radius: 12px;
         font-size: 0.75em;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s ease;
         user-select: none;
-        min-width: 32px;
+        min-width: 28px;
         text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .day-pill.active {
@@ -269,6 +274,17 @@ class AlarmClockCard extends LitElement {
       .action-button.skip {
         background: var(--disabled-color, #bdbdbd);
         color: var(--alarm-text-primary);
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        font-size: 0.85em;
+      }
+
+      .action-button.delete {
+        background: var(--alarm-active-color);
+        color: white;
+        flex: 0 0 auto;
+        padding: 8px 12px;
+        font-size: 0.85em;
       }
 
       .action-button:hover {
@@ -580,6 +596,16 @@ class AlarmClockCard extends LitElement {
         font-size: 1.5em;
         font-weight: 300;
         color: var(--alarm-text-primary);
+      }
+
+      .alarm-compact-name {
+        font-size: 0.7em;
+        color: var(--alarm-text-secondary);
+        text-align: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
       }
 
       .alarm-compact-days {
@@ -1081,7 +1107,14 @@ class AlarmClockCard extends LitElement {
                   <ha-icon
                     icon="${skipNext ? "mdi:skip-next-circle" : "mdi:skip-next"}"
                   ></ha-icon>
-                  ${skipNext ? "Unskip" : "Skip Next"}
+                  ${skipNext ? "Unskip" : "Skip"}
+                </button>
+                <button
+                  class="action-button delete"
+                  @click="${() => this._deleteAlarm(alarm)}"
+                >
+                  <ha-icon icon="mdi:delete"></ha-icon>
+                  Delete
                 </button>
               </div>
             `}
@@ -1244,6 +1277,28 @@ class AlarmClockCard extends LitElement {
     }
   }
 
+  _deleteAlarm(alarm) {
+    console.log("_deleteAlarm called", { alarm });
+
+    const alarmName = alarm.attributes.alarm_name || "this alarm";
+
+    if (!confirm(`Are you sure you want to delete ${alarmName}?`)) {
+      return;
+    }
+
+    this.hass.callService("alarm_clock", "delete_alarm", {
+      alarm_id: alarm.attributes.alarm_id,
+    }).catch(err => {
+      console.error("Failed to delete alarm:", err);
+      alert("Failed to delete alarm: " + err.message);
+    });
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+  }
+
   _renderAlarmCompact(alarm) {
     const attrs = alarm.attributes;
     const isEnabled = alarm.state.state === "on";
@@ -1266,6 +1321,7 @@ class AlarmClockCard extends LitElement {
         @click="${() => this._selectAlarm(attrs.alarm_id)}"
       >
         <div class="alarm-compact-time">${attrs.alarm_time || "00:00"}</div>
+        <div class="alarm-compact-name">${attrs.alarm_name || "Alarm"}</div>
         <div class="alarm-compact-days">
           ${dayNames.map(
             (day, index) => html`
@@ -1425,7 +1481,14 @@ class AlarmClockCard extends LitElement {
                   <ha-icon
                     icon="${skipNext ? "mdi:skip-next-circle" : "mdi:skip-next"}"
                   ></ha-icon>
-                  ${skipNext ? "Unskip" : "Skip Next"}
+                  ${skipNext ? "Unskip" : "Skip"}
+                </button>
+                <button
+                  class="action-button delete"
+                  @click="${() => this._deleteAlarm(alarm)}"
+                >
+                  <ha-icon icon="mdi:delete"></ha-icon>
+                  Delete
                 </button>
               </div>
             `}
@@ -1552,9 +1615,10 @@ class AlarmClockCard extends LitElement {
     }
 
     // Create a new alarm with default settings
-    // Generate a unique name based on current time
-    const now = new Date();
-    const alarmName = `Alarm ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    // Generate a unique name based on alarm count
+    const currentAlarms = this._getAlarms();
+    const alarmNumber = currentAlarms.length + 1;
+    const alarmName = `Alarm ${alarmNumber}`;
 
     console.log("Creating alarm:", {
       name: alarmName,
