@@ -276,11 +276,25 @@ class AlarmClockCoordinator:
         # Remove from store
         await self.store.async_remove_alarm(alarm_id)
 
+        # Remove associated entities from entity registry
+        entity_registry = er.async_get(self.hass)
+        entities_to_remove = []
+
+        # Find all entities with this alarm_id in their unique_id
+        for entity_id, entity_entry in entity_registry.entities.items():
+            if entity_entry.unique_id and alarm_id in entity_entry.unique_id:
+                entities_to_remove.append(entity_id)
+
+        # Remove found entities
+        for entity_id in entities_to_remove:
+            _LOGGER.debug("Removing entity %s for alarm %s", entity_id, alarm_id)
+            entity_registry.async_remove(entity_id)
+
         # Remove from memory
         del self._alarms[alarm_id]
 
         self._notify_update()
-        _LOGGER.info("Removed alarm: %s", alarm_id)
+        _LOGGER.info("Removed alarm %s and %d associated entities", alarm_id, len(entities_to_remove))
         return True
 
     def _schedule_alarm(self, alarm_id: str) -> None:
