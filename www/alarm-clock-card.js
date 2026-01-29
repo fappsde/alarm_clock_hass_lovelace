@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.1";
+const CARD_VERSION = "1.0.2";
 
 // Log card info
 console.info(
@@ -964,7 +964,7 @@ class AlarmClockCard extends LitElement {
       >
         <div class="alarm-header">
           <div>
-            <div class="alarm-time" @click="${() => this._showTimePicker(alarm)}">
+            <div class="alarm-time" @click="${() => this._openTimePicker(alarm)}">
               ${attrs.alarm_time || "00:00"}
               ${isRinging
                 ? html`<span class="status-badge ringing">Ringing</span>`
@@ -1169,28 +1169,6 @@ class AlarmClockCard extends LitElement {
     if (navigator.vibrate) {
       navigator.vibrate(30);
     }
-  }
-
-  _showTimePicker(alarm) {
-    // For now, just cycle through common times
-    // A proper implementation would show a time picker dialog
-    const commonTimes = [
-      "06:00",
-      "06:30",
-      "07:00",
-      "07:30",
-      "08:00",
-      "08:30",
-      "09:00",
-    ];
-    const currentTime = alarm.attributes.alarm_time || "07:00";
-    const currentIndex = commonTimes.indexOf(currentTime);
-    const nextIndex = (currentIndex + 1) % commonTimes.length;
-
-    this.hass.callService("alarm_clock", "set_time", {
-      entity_id: alarm.entity_id,
-      alarm_time: commonTimes[nextIndex],
-    });
   }
 
   _snoozeAlarm(alarm) {
