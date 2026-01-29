@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.5";
+const CARD_VERSION = "1.0.6";
 
 // Log card info
 console.info(
@@ -176,7 +176,49 @@ class AlarmClockCard extends LitElement {
       .alarm-header {
         display: flex;
         justify-content: space-between;
+        align-items: flex-start;
+      }
+
+      .alarm-header-right {
+        display: flex;
+        flex-direction: column;
         align-items: center;
+        gap: 8px;
+      }
+
+      .alarm-icon-buttons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .icon-button {
+        background: transparent;
+        border: none;
+        color: var(--alarm-text-secondary);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+      }
+
+      .icon-button:hover {
+        background: var(--divider-color, #e0e0e0);
+        color: var(--alarm-text-primary);
+      }
+
+      .icon-button.delete:hover {
+        background: var(--alarm-active-color);
+        color: white;
+      }
+
+      .icon-button.skip-active {
+        color: var(--alarm-primary-color);
       }
 
       .alarm-time {
@@ -210,15 +252,15 @@ class AlarmClockCard extends LitElement {
       }
 
       .day-pill {
-        flex: 1;
-        padding: 6px 4px;
+        flex: 1 1 0;
+        padding: 6px 2px;
         border-radius: 12px;
         font-size: 0.75em;
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s ease;
         user-select: none;
-        min-width: 28px;
+        min-width: 0;
         text-align: center;
         display: flex;
         align-items: center;
@@ -1014,11 +1056,35 @@ class AlarmClockCard extends LitElement {
                 `
               : ""}
           </div>
-          <ha-switch
-            class="alarm-toggle"
-            .checked="${isEnabled}"
-            @change="${(e) => this._toggleAlarm(alarm, e.target.checked)}"
-          ></ha-switch>
+          <div class="alarm-header-right">
+            <ha-switch
+              class="alarm-toggle"
+              .checked="${isEnabled}"
+              @change="${(e) => this._toggleAlarm(alarm, e.target.checked)}"
+            ></ha-switch>
+            ${!isRinging && !isSnoozed
+              ? html`
+                  <div class="alarm-icon-buttons">
+                    <button
+                      class="icon-button ${skipNext ? 'skip-active' : ''}"
+                      title="${skipNext ? 'Cancel skip next occurrence' : 'Skip next occurrence'}"
+                      @click="${() => this._toggleSkip(alarm, !skipNext)}"
+                    >
+                      <ha-icon
+                        icon="${skipNext ? 'mdi:skip-next-circle' : 'mdi:skip-next'}"
+                      ></ha-icon>
+                    </button>
+                    <button
+                      class="icon-button delete"
+                      title="Delete alarm"
+                      @click="${() => this._deleteAlarm(alarm)}"
+                    >
+                      <ha-icon icon="mdi:delete"></ha-icon>
+                    </button>
+                  </div>
+                `
+              : ""}
+          </div>
         </div>
 
         ${!this.config.compact_mode
@@ -1098,26 +1164,7 @@ class AlarmClockCard extends LitElement {
                 </button>
               </div>
             `
-          : html`
-              <div class="alarm-actions">
-                <button
-                  class="action-button skip"
-                  @click="${() => this._toggleSkip(alarm, !skipNext)}"
-                >
-                  <ha-icon
-                    icon="${skipNext ? "mdi:skip-next-circle" : "mdi:skip-next"}"
-                  ></ha-icon>
-                  ${skipNext ? "Unskip" : "Skip"}
-                </button>
-                <button
-                  class="action-button delete"
-                  @click="${() => this._deleteAlarm(alarm)}"
-                >
-                  <ha-icon icon="mdi:delete"></ha-icon>
-                  Delete
-                </button>
-              </div>
-            `}
+          : ""}
       </div>
     `;
   }
@@ -1383,11 +1430,35 @@ class AlarmClockCard extends LitElement {
                 : ""}
             </div>
           </div>
-          <ha-switch
-            class="alarm-toggle"
-            .checked="${isEnabled}"
-            @change="${(e) => this._toggleAlarm(alarm, e.target.checked)}"
-          ></ha-switch>
+          <div class="alarm-header-right">
+            <ha-switch
+              class="alarm-toggle"
+              .checked="${isEnabled}"
+              @change="${(e) => this._toggleAlarm(alarm, e.target.checked)}"
+            ></ha-switch>
+            ${!isRinging && !isSnoozed
+              ? html`
+                  <div class="alarm-icon-buttons">
+                    <button
+                      class="icon-button ${skipNext ? 'skip-active' : ''}"
+                      title="${skipNext ? 'Cancel skip next occurrence' : 'Skip next occurrence'}"
+                      @click="${() => this._toggleSkip(alarm, !skipNext)}"
+                    >
+                      <ha-icon
+                        icon="${skipNext ? 'mdi:skip-next-circle' : 'mdi:skip-next'}"
+                      ></ha-icon>
+                    </button>
+                    <button
+                      class="icon-button delete"
+                      title="Delete alarm"
+                      @click="${() => this._deleteAlarm(alarm)}"
+                    >
+                      <ha-icon icon="mdi:delete"></ha-icon>
+                    </button>
+                  </div>
+                `
+              : ""}
+          </div>
         </div>
 
         <div class="alarm-name">${attrs.alarm_name || "Alarm"}</div>
@@ -1472,26 +1543,7 @@ class AlarmClockCard extends LitElement {
                 </button>
               </div>
             `
-          : html`
-              <div class="alarm-actions">
-                <button
-                  class="action-button skip"
-                  @click="${() => this._toggleSkip(alarm, !skipNext)}"
-                >
-                  <ha-icon
-                    icon="${skipNext ? "mdi:skip-next-circle" : "mdi:skip-next"}"
-                  ></ha-icon>
-                  ${skipNext ? "Unskip" : "Skip"}
-                </button>
-                <button
-                  class="action-button delete"
-                  @click="${() => this._deleteAlarm(alarm)}"
-                >
-                  <ha-icon icon="mdi:delete"></ha-icon>
-                  Delete
-                </button>
-              </div>
-            `}
+          : ""}
       </div>
     `;
   }
