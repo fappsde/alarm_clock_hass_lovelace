@@ -295,7 +295,9 @@ class AlarmClockCoordinator:
         del self._alarms[alarm_id]
 
         self._notify_update()
-        _LOGGER.info("Removed alarm %s and %d associated entities", alarm_id, len(entities_to_remove))
+        _LOGGER.info(
+            "Removed alarm %s and %d associated entities", alarm_id, len(entities_to_remove)
+        )
         return True
 
     def _schedule_alarm(self, alarm_id: str) -> None:

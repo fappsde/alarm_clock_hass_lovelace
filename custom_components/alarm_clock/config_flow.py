@@ -231,7 +231,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
                     script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
                     script_timeout=alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
-                    script_retry_count=alarm_data.get(CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT),
+                    script_retry_count=alarm_data.get(
+                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                    ),
                 )
                 await coordinator.async_add_alarm(new_alarm)
 
@@ -270,7 +272,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                             min=0, max=60, step=1, unit_of_measurement="minutes"
                         )
                     ),
-                    vol.Optional(CONF_USE_DEVICE_DEFAULTS, default=True): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_USE_DEVICE_DEFAULTS, default=True
+                    ): selector.BooleanSelector(),
                     vol.Optional(CONF_SCRIPT_PRE_ALARM): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="script")
                     ),
@@ -516,7 +520,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_TIMEOUT,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
+                        default=current_options.get(
+                            CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+                        ),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=1, max=300, step=1, unit_of_measurement="seconds"
@@ -524,7 +530,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_RETRY_COUNT,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT),
+                        default=current_options.get(
+                            CONF_DEFAULT_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                        ),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0, max=10, step=1)
                     ),
