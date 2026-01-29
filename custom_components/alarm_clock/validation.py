@@ -1,4 +1,5 @@
 """Validation utilities for alarm clock integration."""
+
 import logging
 import re
 from typing import Any
@@ -75,10 +76,7 @@ def validate_alarm_name(name: str) -> str:
     # Check length
     max_length = 50
     if len(name) > max_length:
-        _LOGGER.warning(
-            "Alarm name too long (%d chars), truncating to %d",
-            len(name), max_length
-        )
+        _LOGGER.warning("Alarm name too long (%d chars), truncating to %d", len(name), max_length)
         name = name[:max_length]
 
     # Remove control characters
@@ -87,10 +85,7 @@ def validate_alarm_name(name: str) -> str:
     # Ensure valid for entity ID
     # Entity IDs can't have special chars except underscore and hyphen
     if not re.match(r"^[\w\s\-]+$", name):
-        _LOGGER.warning(
-            "Alarm name contains special characters: %s",
-            name
-        )
+        _LOGGER.warning("Alarm name contains special characters: %s", name)
         # Replace special chars with spaces
         name = re.sub(r"[^\w\s\-]", " ", name)
 
@@ -98,10 +93,7 @@ def validate_alarm_name(name: str) -> str:
 
 
 def validate_duration(
-    value: Any,
-    field_name: str,
-    min_value: int = 0,
-    max_value: int = 1440
+    value: Any, field_name: str, min_value: int = 0, max_value: int = 1440
 ) -> int:
     """Validate duration value.
 
@@ -120,14 +112,11 @@ def validate_duration(
     try:
         int_value = int(value)
     except (ValueError, TypeError) as e:
-        raise ValidationError(
-            f"{field_name} must be an integer, got {type(value)}"
-        ) from e
+        raise ValidationError(f"{field_name} must be an integer, got {type(value)}") from e
 
     if not min_value <= int_value <= max_value:
         raise ValidationError(
-            f"{field_name} must be between {min_value} and {max_value}, "
-            f"got {int_value}"
+            f"{field_name} must be between {min_value} and {max_value}, " f"got {int_value}"
         )
 
     return int_value
@@ -148,10 +137,7 @@ def validate_days(days: list[str]) -> list[str]:
     if not isinstance(days, list):
         raise ValidationError(f"Days must be a list, got {type(days)}")
 
-    valid_days = [
-        "monday", "tuesday", "wednesday", "thursday",
-        "friday", "saturday", "sunday"
-    ]
+    valid_days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
     # Validate each day
     validated_days = []
@@ -175,10 +161,7 @@ def validate_days(days: list[str]) -> list[str]:
     return validated_days
 
 
-async def validate_script_entity(
-    hass: HomeAssistant,
-    entity_id: str | None
-) -> bool:
+async def validate_script_entity(hass: HomeAssistant, entity_id: str | None) -> bool:
     """Validate that script entity exists.
 
     Args:
@@ -195,9 +178,7 @@ async def validate_script_entity(
         return True
 
     if not isinstance(entity_id, str):
-        raise ValidationError(
-            f"Entity ID must be string, got {type(entity_id)}"
-        )
+        raise ValidationError(f"Entity ID must be string, got {type(entity_id)}")
 
     # Check entity exists
     state = hass.states.get(entity_id)
@@ -207,9 +188,7 @@ async def validate_script_entity(
 
     # Check it's a script domain
     if not entity_id.startswith("script."):
-        raise ValidationError(
-            f"Entity must be a script, got {entity_id}"
-        )
+        raise ValidationError(f"Entity must be a script, got {entity_id}")
 
     return True
 
@@ -259,9 +238,7 @@ def validate_alarm_data(data: dict[str, Any]) -> dict[str, str]:
     for field, (min_val, max_val) in numeric_fields.items():
         if field in data:
             try:
-                data[field] = validate_duration(
-                    data[field], field, min_val, max_val
-                )
+                data[field] = validate_duration(data[field], field, min_val, max_val)
             except ValidationError as e:
                 errors[field] = str(e)
 
@@ -299,10 +276,7 @@ class InputSanitizer:
 
     @staticmethod
     def sanitize_int(
-        value: Any,
-        min_value: int | None = None,
-        max_value: int | None = None,
-        default: int = 0
+        value: Any, min_value: int | None = None, max_value: int | None = None, default: int = 0
     ) -> int:
         """Sanitize integer input.
 
@@ -318,25 +292,16 @@ class InputSanitizer:
         try:
             int_value = int(value)
         except (ValueError, TypeError):
-            _LOGGER.warning(
-                "Invalid integer value: %s, using default %d",
-                value, default
-            )
+            _LOGGER.warning("Invalid integer value: %s, using default %d", value, default)
             return default
 
         # Clamp to range
         if min_value is not None and int_value < min_value:
-            _LOGGER.warning(
-                "Value %d below minimum %d, clamping",
-                int_value, min_value
-            )
+            _LOGGER.warning("Value %d below minimum %d, clamping", int_value, min_value)
             int_value = min_value
 
         if max_value is not None and int_value > max_value:
-            _LOGGER.warning(
-                "Value %d above maximum %d, clamping",
-                int_value, max_value
-            )
+            _LOGGER.warning("Value %d above maximum %d, clamping", int_value, max_value)
             int_value = max_value
 
         return int_value

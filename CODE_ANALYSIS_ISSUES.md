@@ -15,9 +15,9 @@
 
 ## Potential Issues Identified
 
-### ⚠️ Issue #2: Race Condition in Alarm Scheduling
+### ✅ Issue #2: Race Condition in Alarm Scheduling - FIXED
 **Severity**: MEDIUM
-**Status**: NEEDS REVIEW
+**Status**: FIXED
 **File**: `coordinator.py`
 
 **Problem**:
@@ -36,24 +36,31 @@ def _schedule_alarm(self, alarm_id: str) -> None:
 
 **Risk**: If two threads/tasks call `_schedule_alarm` simultaneously, callbacks could be overwritten without proper cancellation.
 
-**Recommendation**:
+**Fix Implemented**:
 ```python
-import asyncio
+# Added in __init__
+self._schedule_lock = asyncio.Lock()
 
-def _schedule_alarm(self, alarm_id: str) -> None:
-    """Schedule the next trigger for an alarm."""
-    # Add lock for thread safety
+# Made _schedule_alarm async and protected critical sections
+async def _schedule_alarm(self, alarm_id: str) -> None:
+    """Schedule the next trigger for an alarm.
+
+    Thread-safe using asyncio.Lock to prevent race conditions when
+    cancelling and creating callbacks.
+    """
+    # ... validation logic ...
+
+    # Critical section: Cancel existing and schedule new callback
     async with self._schedule_lock:
-        if alarm_id not in self._alarms:
-            return
-
         self._cancel_scheduled_callback(alarm_id)
         self._scheduled_callbacks[alarm_id] = async_track_point_in_time(...)
 ```
 
-**Prevention**:
-- Add `self._schedule_lock = asyncio.Lock()` in `__init__`
-- Wrap all schedule operations in lock
+**Results**:
+- All critical sections protected with asyncio.Lock
+- Updated all 9 call sites to await the async function
+- Prevents orphaned callbacks and memory leaks
+- Ensures atomic cancel-and-schedule operations
 
 ---
 
@@ -280,43 +287,63 @@ _toggleDay(alarm, day, currentDays) {
 
 ---
 
-### ⚠️ Issue #8: No Input Sanitization in Config Flow
+### ✅ Issue #8: No Input Sanitization in Config Flow - FIXED
 **Severity**: MEDIUM
-**Status**: NEEDS REVIEW
+**Status**: FIXED
 **File**: `config_flow.py`
 
-**Problem**: User input is not sanitized before creating alarms.
+**Problem**: User input was not sanitized before creating alarms.
 
 **Risk**:
 - Very long alarm names could cause UI issues
 - Special characters in names might break entity IDs
 - Negative numbers in duration fields
+- Invalid time formats causing crashes
 
-**Recommendation**:
+**Fix Implemented**:
+Integrated validation.py utilities into config_flow.py:
+
 ```python
-def validate_alarm_data(data: dict) -> dict:
-    """Validate and sanitize alarm data."""
-    errors = {}
+from .validation import validate_alarm_name, validate_duration, validate_time_format, ValidationError
 
-    # Sanitize name
-    if CONF_ALARM_NAME in data:
-        name = str(data[CONF_ALARM_NAME]).strip()
-        if len(name) > 50:
-            name = name[:50]
-            _LOGGER.warning("Alarm name truncated to 50 characters")
-        if not name:
-            errors[CONF_ALARM_NAME] = "Name cannot be empty"
-        data[CONF_ALARM_NAME] = name
+# In async_step_add_alarm
+try:
+    user_input[CONF_ALARM_NAME] = validate_alarm_name(user_input[CONF_ALARM_NAME])
+except ValidationError as err:
+    errors[CONF_ALARM_NAME] = "invalid_name"
 
-    # Validate numeric fields
-    for field in [CONF_SNOOZE_DURATION, CONF_MAX_SNOOZE_COUNT]:
-        if field in data:
-            value = data[field]
-            if not isinstance(value, int) or value < 0:
-                errors[field] = f"Invalid value: {value}"
+try:
+    validate_time_format(user_input[CONF_ALARM_TIME])
+except ValidationError as err:
+    errors[CONF_ALARM_TIME] = "invalid_time"
 
-    return errors
+# In async_step_alarm_advanced - validate all numeric fields
+numeric_validations = {
+    CONF_SNOOZE_DURATION: (1, 60),
+    CONF_MAX_SNOOZE_COUNT: (0, 10),
+    CONF_AUTO_DISMISS_TIMEOUT: (1, 180),
+    CONF_PRE_ALARM_DURATION: (0, 60),
+    CONF_SCRIPT_TIMEOUT: (1, 300),
+    CONF_SCRIPT_RETRY_COUNT: (0, 10),
+}
+
+for field, (min_val, max_val) in numeric_validations.items():
+    if field in user_input:
+        try:
+            user_input[field] = validate_duration(
+                user_input[field], field, min_val, max_val
+            )
+        except ValidationError as err:
+            errors[field] = "invalid_value"
 ```
+
+**Results**:
+- All user input validated before processing
+- Alarm names sanitized (truncated to 50 chars, control chars removed)
+- Time formats validated (hours 0-23, minutes 0-59)
+- Numeric fields validated with proper ranges
+- Clear error messages displayed to user
+- Prevents crashes from malformed input
 
 ---
 
@@ -493,13 +520,14 @@ def track_performance(func):
 1. ✅ Config flow infinite loop (v1.0.8)
 2. ✅ Version synchronization
 3. ✅ Added comprehensive testing framework
+4. ✅ Race condition in alarm scheduling (asyncio.Lock implementation)
+5. ✅ Input validation in config flow (integrated validation.py)
 
 ### Issues Requiring Action:
-1. ⚠️ Add asyncio.Lock for alarm scheduling (race condition)
-2. ⚠️ Enhance error handling in script execution
-3. ⚠️ Add input validation in config flow
-4. ⚠️ Add debouncing to UI actions
-5. ⚠️ Implement rate limiting on service calls
+1. ⚠️ Enhance error handling in script execution
+2. ⚠️ Add debouncing to UI actions
+3. ⚠️ Implement rate limiting on service calls
+4. ⚠️ Memory leak cleanup in event tracking
 
 ### Testing Status:
 - Unit tests: 20% coverage (config flow only)
