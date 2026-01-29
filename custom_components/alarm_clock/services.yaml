@@ -288,6 +288,13 @@ create_alarm:
       required: false
       selector:
         text:
+    use_device_defaults:
+      name: Use Device Defaults
+      description: Use device-level default scripts instead of individual alarm scripts
+      required: false
+      default: true
+      selector:
+        boolean:
 
 delete_alarm:
   name: Delete Alarm

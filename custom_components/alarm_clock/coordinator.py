@@ -41,6 +41,7 @@ from .const import (
     CONF_SCRIPT_RETRY_COUNT,
     CONF_SCRIPT_TIMEOUT,
     CONF_SNOOZE_DURATION,
+    CONF_USE_DEVICE_DEFAULTS,
     DEFAULT_MISSED_ALARM_GRACE_PERIOD,
     DEFAULT_SNOOZE_DURATION,
     DOMAIN,
@@ -421,7 +422,7 @@ class AlarmClockCoordinator:
         # Execute alarm script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_alarm,
+            self._get_effective_script(alarm, "script_alarm"),
             "alarm",
         )
 
@@ -463,7 +464,7 @@ class AlarmClockCoordinator:
         # Execute pre-alarm script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_pre_alarm,
+            self._get_effective_script(alarm, "script_pre_alarm"),
             "pre_alarm",
         )
 
@@ -530,7 +531,7 @@ class AlarmClockCoordinator:
         # Execute post-alarm script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_post_alarm,
+            self._get_effective_script(alarm, "script_post_alarm"),
             "post_alarm",
         )
 
@@ -597,7 +598,7 @@ class AlarmClockCoordinator:
         # Execute on-snooze script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_on_snooze,
+            self._get_effective_script(alarm, "script_on_snooze"),
             "on_snooze",
         )
 
@@ -636,14 +637,14 @@ class AlarmClockCoordinator:
         # Execute on-dismiss script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_on_dismiss,
+            self._get_effective_script(alarm, "script_on_dismiss"),
             "on_dismiss",
         )
 
         # Execute post-alarm script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_post_alarm,
+            self._get_effective_script(alarm, "script_post_alarm"),
             "post_alarm",
         )
 
@@ -682,7 +683,7 @@ class AlarmClockCoordinator:
         # Execute on-skip script
         await self._async_execute_script(
             alarm_id,
-            alarm.data.script_on_skip,
+            self._get_effective_script(alarm, "script_on_skip"),
             "on_skip",
         )
 
@@ -742,7 +743,7 @@ class AlarmClockCoordinator:
             # Execute on-arm script
             await self._async_execute_script(
                 alarm_id,
-                alarm.data.script_on_arm,
+                self._get_effective_script(alarm, "script_on_arm"),
                 "on_arm",
             )
         else:
@@ -757,7 +758,7 @@ class AlarmClockCoordinator:
 
                 await self._async_execute_script(
                     alarm_id,
-                    alarm.data.script_on_cancel,
+                    self._get_effective_script(alarm, "script_on_cancel"),
                     "on_cancel",
                 )
 
@@ -836,6 +837,9 @@ class AlarmClockCoordinator:
 
         alarm = self._alarms[alarm_id]
 
+        # Setting individual scripts disables device defaults
+        alarm.data.use_device_defaults = False
+
         # Update only the provided scripts
         if script_pre_alarm is not None:
             alarm.data.script_pre_alarm = script_pre_alarm
@@ -864,6 +868,29 @@ class AlarmClockCoordinator:
         self._notify_update()
         return True
 
+    def _get_effective_script(self, alarm: AlarmStateMachine, script_attr: str) -> str | None:
+        """Get the effective script for an alarm based on device defaults setting."""
+        if not alarm.data.use_device_defaults:
+            # Use alarm-specific scripts
+            return getattr(alarm.data, script_attr)
+
+        # Use device-level defaults from config entry options
+        options = self.entry.options
+        default_attr = f"default_{script_attr}"
+        return options.get(default_attr)
+
+    def _get_effective_script_timeout(self, alarm: AlarmStateMachine) -> int:
+        """Get the effective script timeout."""
+        if not alarm.data.use_device_defaults:
+            return alarm.data.script_timeout
+        return self.entry.options.get("default_script_timeout", 30)
+
+    def _get_effective_script_retry_count(self, alarm: AlarmStateMachine) -> int:
+        """Get the effective script retry count."""
+        if not alarm.data.use_device_defaults:
+            return alarm.data.script_retry_count
+        return self.entry.options.get("default_script_retry_count", 3)
+
     async def _async_execute_script(
         self,
         alarm_id: str,
@@ -878,8 +905,8 @@ class AlarmClockCoordinator:
         if not alarm:
             return False
 
-        timeout = alarm.data.script_timeout
-        max_retries = alarm.data.script_retry_count
+        timeout = self._get_effective_script_timeout(alarm)
+        max_retries = self._get_effective_script_retry_count(alarm)
         context = alarm.get_script_context()
 
         for attempt in range(max_retries):
@@ -967,7 +994,7 @@ class AlarmClockCoordinator:
             )
             return await self._async_execute_script(
                 alarm_id,
-                alarm.data.script_fallback,
+                self._get_effective_script(alarm, "script_fallback"),
                 "fallback",
             )
 
@@ -1252,6 +1279,7 @@ class AlarmClockCoordinator:
                     int
                 ),
                 vol.Optional(CONF_MAX_SNOOZE_COUNT, default=3): vol.Coerce(int),
+                vol.Optional(CONF_USE_DEVICE_DEFAULTS, default=True): cv.boolean,
                 vol.Optional("entry_id"): cv.string,
             }
         )
@@ -1445,6 +1473,7 @@ class AlarmClockCoordinator:
                 one_time=call.data.get(CONF_ONE_TIME, False),
                 snooze_duration=call.data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
                 max_snooze_count=call.data.get(CONF_MAX_SNOOZE_COUNT, 3),
+                use_device_defaults=call.data.get(CONF_USE_DEVICE_DEFAULTS, True),
             )
             await self.async_add_alarm(alarm_data)
 

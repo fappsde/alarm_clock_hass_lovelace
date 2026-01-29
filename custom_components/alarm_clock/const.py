@@ -23,8 +23,9 @@ CONF_AUTO_DISMISS_TIMEOUT: Final = "auto_dismiss_timeout"
 CONF_PRE_ALARM_DURATION: Final = "pre_alarm_duration"
 CONF_GRADUAL_VOLUME: Final = "gradual_volume"
 CONF_GRADUAL_VOLUME_DURATION: Final = "gradual_volume_duration"
+CONF_USE_DEVICE_DEFAULTS: Final = "use_device_defaults"
 
-# Script configuration
+# Script configuration (per-alarm)
 CONF_SCRIPT_PRE_ALARM: Final = "script_pre_alarm"
 CONF_SCRIPT_ALARM: Final = "script_alarm"
 CONF_SCRIPT_POST_ALARM: Final = "script_post_alarm"
@@ -36,6 +37,19 @@ CONF_SCRIPT_ON_SKIP: Final = "script_on_skip"
 CONF_SCRIPT_FALLBACK: Final = "script_fallback"
 CONF_SCRIPT_TIMEOUT: Final = "script_timeout"
 CONF_SCRIPT_RETRY_COUNT: Final = "script_retry_count"
+
+# Device-level default scripts (stored in options)
+CONF_DEFAULT_SCRIPT_PRE_ALARM: Final = "default_script_pre_alarm"
+CONF_DEFAULT_SCRIPT_ALARM: Final = "default_script_alarm"
+CONF_DEFAULT_SCRIPT_POST_ALARM: Final = "default_script_post_alarm"
+CONF_DEFAULT_SCRIPT_ON_SNOOZE: Final = "default_script_on_snooze"
+CONF_DEFAULT_SCRIPT_ON_DISMISS: Final = "default_script_on_dismiss"
+CONF_DEFAULT_SCRIPT_ON_ARM: Final = "default_script_on_arm"
+CONF_DEFAULT_SCRIPT_ON_CANCEL: Final = "default_script_on_cancel"
+CONF_DEFAULT_SCRIPT_ON_SKIP: Final = "default_script_on_skip"
+CONF_DEFAULT_SCRIPT_FALLBACK: Final = "default_script_fallback"
+CONF_DEFAULT_SCRIPT_TIMEOUT: Final = "default_script_timeout"
+CONF_DEFAULT_SCRIPT_RETRY_COUNT: Final = "default_script_retry_count"
 
 # Reliability configuration
 CONF_WATCHDOG_TIMEOUT: Final = "watchdog_timeout"

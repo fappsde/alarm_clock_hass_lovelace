@@ -57,6 +57,9 @@ class AlarmData:
     gradual_volume: bool = False
     gradual_volume_duration: int = 5  # minutes
 
+    # Script configuration
+    use_device_defaults: bool = True  # Use device-level default scripts
+
     # Script references (entity_id of script.*)
     script_pre_alarm: str | None = None
     script_alarm: str | None = None
@@ -86,6 +89,7 @@ class AlarmData:
             "pre_alarm_duration": self.pre_alarm_duration,
             "gradual_volume": self.gradual_volume,
             "gradual_volume_duration": self.gradual_volume_duration,
+            "use_device_defaults": self.use_device_defaults,
             "script_pre_alarm": self.script_pre_alarm,
             "script_alarm": self.script_alarm,
             "script_post_alarm": self.script_post_alarm,
@@ -116,6 +120,7 @@ class AlarmData:
             pre_alarm_duration=data.get("pre_alarm_duration", 5),
             gradual_volume=data.get("gradual_volume", False),
             gradual_volume_duration=data.get("gradual_volume_duration", 5),
+            use_device_defaults=data.get("use_device_defaults", True),
             script_pre_alarm=data.get("script_pre_alarm"),
             script_alarm=data.get("script_alarm"),
             script_post_alarm=data.get("script_post_alarm"),
