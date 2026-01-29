@@ -1552,9 +1552,10 @@ class AlarmClockCard extends LitElement {
     }
 
     // Create a new alarm with default settings
-    // Generate a unique name based on current time
-    const now = new Date();
-    const alarmName = `Alarm ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    // Generate a unique name based on alarm count
+    const currentAlarms = this._getAlarms();
+    const alarmNumber = currentAlarms.length + 1;
+    const alarmName = `Alarm ${alarmNumber}`;
 
     console.log("Creating alarm:", {
       name: alarmName,

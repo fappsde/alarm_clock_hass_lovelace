@@ -29,6 +29,17 @@ from .const import (
     CONF_ENABLED,
     CONF_MAX_SNOOZE_COUNT,
     CONF_ONE_TIME,
+    CONF_SCRIPT_ALARM,
+    CONF_SCRIPT_FALLBACK,
+    CONF_SCRIPT_ON_ARM,
+    CONF_SCRIPT_ON_CANCEL,
+    CONF_SCRIPT_ON_DISMISS,
+    CONF_SCRIPT_ON_SKIP,
+    CONF_SCRIPT_ON_SNOOZE,
+    CONF_SCRIPT_POST_ALARM,
+    CONF_SCRIPT_PRE_ALARM,
+    CONF_SCRIPT_RETRY_COUNT,
+    CONF_SCRIPT_TIMEOUT,
     CONF_SNOOZE_DURATION,
     DEFAULT_MISSED_ALARM_GRACE_PERIOD,
     DEFAULT_SNOOZE_DURATION,
@@ -39,6 +50,7 @@ from .const import (
     SERVICE_DELETE_ALARM,
     SERVICE_DISMISS,
     SERVICE_SET_DAYS,
+    SERVICE_SET_SCRIPTS,
     SERVICE_SET_TIME,
     SERVICE_SKIP_NEXT,
     SERVICE_SNOOZE,
@@ -789,6 +801,55 @@ class AlarmClockCoordinator:
         self._notify_update()
         return True
 
+    async def async_set_scripts(
+        self,
+        alarm_id: str,
+        script_pre_alarm: str | None = None,
+        script_alarm: str | None = None,
+        script_post_alarm: str | None = None,
+        script_on_snooze: str | None = None,
+        script_on_dismiss: str | None = None,
+        script_on_arm: str | None = None,
+        script_on_cancel: str | None = None,
+        script_on_skip: str | None = None,
+        script_fallback: str | None = None,
+        script_timeout: int | None = None,
+        script_retry_count: int | None = None,
+    ) -> bool:
+        """Set alarm scripts."""
+        if alarm_id not in self._alarms:
+            return False
+
+        alarm = self._alarms[alarm_id]
+
+        # Update only the provided scripts
+        if script_pre_alarm is not None:
+            alarm.data.script_pre_alarm = script_pre_alarm
+        if script_alarm is not None:
+            alarm.data.script_alarm = script_alarm
+        if script_post_alarm is not None:
+            alarm.data.script_post_alarm = script_post_alarm
+        if script_on_snooze is not None:
+            alarm.data.script_on_snooze = script_on_snooze
+        if script_on_dismiss is not None:
+            alarm.data.script_on_dismiss = script_on_dismiss
+        if script_on_arm is not None:
+            alarm.data.script_on_arm = script_on_arm
+        if script_on_cancel is not None:
+            alarm.data.script_on_cancel = script_on_cancel
+        if script_on_skip is not None:
+            alarm.data.script_on_skip = script_on_skip
+        if script_fallback is not None:
+            alarm.data.script_fallback = script_fallback
+        if script_timeout is not None:
+            alarm.data.script_timeout = script_timeout
+        if script_retry_count is not None:
+            alarm.data.script_retry_count = script_retry_count
+
+        await self.store.async_update_alarm(alarm.data)
+        self._notify_update()
+        return True
+
     async def _async_execute_script(
         self,
         alarm_id: str,
@@ -1187,6 +1248,23 @@ class AlarmClockCoordinator:
             }
         )
 
+        set_scripts_schema = vol.Schema(
+            {
+                vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_PRE_ALARM): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_ALARM): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_POST_ALARM): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_ON_SNOOZE): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_ON_DISMISS): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_ON_ARM): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_ON_CANCEL): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_ON_SKIP): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_FALLBACK): cv.entity_id,
+                vol.Optional(CONF_SCRIPT_TIMEOUT): vol.Coerce(int),
+                vol.Optional(CONF_SCRIPT_RETRY_COUNT): vol.Coerce(int),
+            }
+        )
+
         async def handle_snooze(call: ServiceCall) -> None:
             """Handle snooze service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
@@ -1295,6 +1373,34 @@ class AlarmClockCoordinator:
                     list(self._alarms.keys()),
                 )
 
+        async def handle_set_scripts(call: ServiceCall) -> None:
+            """Handle set scripts service call."""
+            entity_id = call.data[ATTR_ENTITY_ID]
+            _LOGGER.debug("handle_set_scripts called: entity_id=%s", entity_id)
+            alarm_id = self._entity_id_to_alarm_id(entity_id)
+            if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_scripts", alarm_id)
+                await self.async_set_scripts(
+                    alarm_id,
+                    script_pre_alarm=call.data.get(CONF_SCRIPT_PRE_ALARM),
+                    script_alarm=call.data.get(CONF_SCRIPT_ALARM),
+                    script_post_alarm=call.data.get(CONF_SCRIPT_POST_ALARM),
+                    script_on_snooze=call.data.get(CONF_SCRIPT_ON_SNOOZE),
+                    script_on_dismiss=call.data.get(CONF_SCRIPT_ON_DISMISS),
+                    script_on_arm=call.data.get(CONF_SCRIPT_ON_ARM),
+                    script_on_cancel=call.data.get(CONF_SCRIPT_ON_CANCEL),
+                    script_on_skip=call.data.get(CONF_SCRIPT_ON_SKIP),
+                    script_fallback=call.data.get(CONF_SCRIPT_FALLBACK),
+                    script_timeout=call.data.get(CONF_SCRIPT_TIMEOUT),
+                    script_retry_count=call.data.get(CONF_SCRIPT_RETRY_COUNT),
+                )
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
+
         async def handle_create_alarm(call: ServiceCall) -> None:
             """Handle create alarm service call."""
             # Check if entry_id is provided and matches this coordinator
@@ -1361,6 +1467,10 @@ class AlarmClockCoordinator:
         if not self.hass.services.has_service(DOMAIN, SERVICE_SET_DAYS):
             self.hass.services.async_register(
                 DOMAIN, SERVICE_SET_DAYS, handle_set_days, schema=set_days_schema
+            )
+        if not self.hass.services.has_service(DOMAIN, SERVICE_SET_SCRIPTS):
+            self.hass.services.async_register(
+                DOMAIN, SERVICE_SET_SCRIPTS, handle_set_scripts, schema=set_scripts_schema
             )
         if not self.hass.services.has_service(DOMAIN, SERVICE_CREATE_ALARM):
             self.hass.services.async_register(

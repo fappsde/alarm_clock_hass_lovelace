@@ -139,6 +139,7 @@ SERVICE_CANCEL_SKIP: Final = "cancel_skip"
 SERVICE_TEST_ALARM: Final = "test_alarm"
 SERVICE_SET_TIME: Final = "set_time"
 SERVICE_SET_DAYS: Final = "set_days"
+SERVICE_SET_SCRIPTS: Final = "set_scripts"
 SERVICE_CREATE_ALARM: Final = "create_alarm"
 SERVICE_DELETE_ALARM: Final = "delete_alarm"
 
