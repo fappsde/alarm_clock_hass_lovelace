@@ -1191,53 +1191,109 @@ class AlarmClockCoordinator:
             """Handle snooze service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
             duration = call.data.get(ATTR_DURATION)
+            _LOGGER.debug("handle_snooze called: entity_id=%s, duration=%s", entity_id, duration)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_snooze", alarm_id)
                 await self.async_snooze(alarm_id, duration)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_dismiss(call: ServiceCall) -> None:
             """Handle dismiss service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
+            _LOGGER.debug("handle_dismiss called: entity_id=%s", entity_id)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_dismiss", alarm_id)
                 await self.async_dismiss(alarm_id)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_skip_next(call: ServiceCall) -> None:
             """Handle skip next service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
+            _LOGGER.debug("handle_skip_next called: entity_id=%s", entity_id)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_skip_next", alarm_id)
                 await self.async_skip_next(alarm_id)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_cancel_skip(call: ServiceCall) -> None:
             """Handle cancel skip service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
+            _LOGGER.debug("handle_cancel_skip called: entity_id=%s", entity_id)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_cancel_skip", alarm_id)
                 await self.async_cancel_skip(alarm_id)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_test_alarm(call: ServiceCall) -> None:
             """Handle test alarm service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
+            _LOGGER.debug("handle_test_alarm called: entity_id=%s", entity_id)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_test_alarm", alarm_id)
                 await self.async_test_alarm(alarm_id)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_set_time(call: ServiceCall) -> None:
             """Handle set time service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
             time = call.data[ATTR_ALARM_TIME]
+            _LOGGER.debug("handle_set_time called: entity_id=%s, time=%s", entity_id, time)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_time", alarm_id)
                 await self.async_set_time(alarm_id, time)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_set_days(call: ServiceCall) -> None:
             """Handle set days service call."""
             entity_id = call.data[ATTR_ENTITY_ID]
             days = call.data[ATTR_DAYS]
+            _LOGGER.debug("handle_set_days called: entity_id=%s, days=%s", entity_id, days)
             alarm_id = self._entity_id_to_alarm_id(entity_id)
             if alarm_id:
+                _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_days", alarm_id)
                 await self.async_set_days(alarm_id, days)
+            else:
+                _LOGGER.error(
+                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                    entity_id,
+                    list(self._alarms.keys()),
+                )
 
         async def handle_create_alarm(call: ServiceCall) -> None:
             """Handle create alarm service call."""
@@ -1319,15 +1375,35 @@ class AlarmClockCoordinator:
 
     def _entity_id_to_alarm_id(self, entity_id: str) -> str | None:
         """Convert entity ID to alarm ID."""
+        _LOGGER.debug("_entity_id_to_alarm_id: Looking up entity_id=%s", entity_id)
+
         # Try to get the alarm_id from the entity's attributes
         entity = self.hass.states.get(entity_id)
         if entity and hasattr(entity, "attributes"):
             alarm_id = entity.attributes.get("alarm_id")
+            _LOGGER.debug("Found alarm_id=%s in entity attributes", alarm_id)
             if alarm_id and alarm_id in self._alarms:
+                _LOGGER.debug("alarm_id %s found in self._alarms, returning", alarm_id)
                 return alarm_id
+            elif alarm_id:
+                _LOGGER.warning(
+                    "alarm_id %s found in entity but NOT in self._alarms. Available: %s",
+                    alarm_id,
+                    list(self._alarms.keys()),
+                )
+        else:
+            _LOGGER.debug("Entity %s not found or has no attributes", entity_id)
 
         # Fallback: try to match by entity_id ending
+        _LOGGER.debug("Trying fallback: checking if entity_id ends with any alarm_id")
         for alarm_id in self._alarms:
             if entity_id.endswith(alarm_id):
+                _LOGGER.debug("Fallback match: entity_id ends with alarm_id %s", alarm_id)
                 return alarm_id
+
+        _LOGGER.warning(
+            "Could not resolve entity_id %s to any alarm_id. Available alarms: %s",
+            entity_id,
+            list(self._alarms.keys()),
+        )
         return None
