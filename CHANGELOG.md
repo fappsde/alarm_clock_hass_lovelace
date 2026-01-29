@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-01-29
+
+### Added
+- Device-level default scripts system
+  - Configure default scripts once at device level
+  - All new alarms automatically use device defaults
+  - Per-alarm override with `use_device_defaults` toggle
+  - Options flow UI to configure 11 default script settings
+  - New service: `set_scripts` to update alarm scripts
+- Delete button in alarm cards (both list and editor views)
+- Alarm name display in compact horizontal view (editor mode)
+- Next alarm display in editor view header
+- Service parameter: `use_device_defaults` in `create_alarm` service
+
+### Changed
+- **BREAKING**: Alarm naming changed from time-based to count-based
+  - Old: "Alarm 15:45" (based on creation time)
+  - New: "Alarm 1", "Alarm 2", etc. (sequential numbering)
+- Editor view time selection: removed "Set Time" button
+  - Time is now clickable like in list view
+  - More consistent UX across view modes
+- Weekday display optimized to fit in single row
+  - Changed from wrapping to nowrap layout
+  - Equal-width day pills with centered letters
+  - Better use of horizontal space
+- Skip button made more compact
+  - Text changed from "Skip Next" to "Skip"
+  - Reduced padding and font size
+  - Shares row with delete button
+- Script execution now respects device defaults
+  - Automatic resolution between alarm-specific and device-level scripts
+  - Applies to all 9 script types and timeout/retry settings
+
+### Fixed
+- Entity cleanup when deleting alarms
+  - All associated entities now properly removed from entity registry
+  - Prevents orphaned unavailable entities
+  - Cleans up switches, sensors, binary sensors, and time entities
+- Alarm card file synchronization
+  - Both `www/` and `custom_components/` versions now identical
+  - Version properly tracked and bumped
+
+### Technical
+- Added 11 new constants for device-level default scripts
+- Added `use_device_defaults` field to AlarmData model
+- Script resolution helpers in coordinator
+- Enhanced config flow with device defaults step
+- Service schema validation for new parameters
+
 ## [1.0.0] - 2024-01-15
 
 ### Added
@@ -69,5 +118,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Script entity validation to prevent invalid references
 - Atomic state transitions to prevent race conditions
 
-[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.0...v1.0.5
 [1.0.0]: https://github.com/fappsde/alarm_clock_hass_lovelace/releases/tag/v1.0.0
