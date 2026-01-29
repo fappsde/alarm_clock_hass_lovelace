@@ -110,6 +110,9 @@ class AlarmClockCoordinator:
         # Watchdog for script execution
         self._script_watchdog_tasks: dict[str, asyncio.Task] = {}
 
+        # Lock for thread-safe alarm scheduling
+        self._schedule_lock = asyncio.Lock()
+
     @property
     def alarms(self) -> dict[str, AlarmStateMachine]:
         """Get all alarms."""
@@ -214,7 +217,7 @@ class AlarmClockCoordinator:
 
         # Schedule if armed
         if alarm.state == AlarmState.ARMED:
-            self._schedule_alarm(alarm_data.alarm_id)
+            await self._schedule_alarm(alarm_data.alarm_id)
 
         # Handle restored snooze state
         if alarm.state == AlarmState.SNOOZED and alarm.snooze_end_time:
@@ -256,7 +259,7 @@ class AlarmClockCoordinator:
         # Re-schedule if needed
         if alarm_data.enabled and old_state in (AlarmState.ARMED, AlarmState.DISABLED):
             await old_alarm.transition_to(AlarmState.ARMED)
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
         elif not alarm_data.enabled:
             await old_alarm.transition_to(AlarmState.DISABLED)
 
@@ -300,43 +303,53 @@ class AlarmClockCoordinator:
         )
         return True
 
-    def _schedule_alarm(self, alarm_id: str) -> None:
-        """Schedule the next trigger for an alarm."""
+    async def _schedule_alarm(self, alarm_id: str) -> None:
+        """Schedule the next trigger for an alarm.
+
+        Thread-safe using asyncio.Lock to prevent race conditions when
+        cancelling and creating callbacks.
+        """
         if alarm_id not in self._alarms:
             return
 
         alarm = self._alarms[alarm_id]
 
         if not alarm.data.enabled or alarm.data.skip_next:
-            alarm.next_trigger = None
+            async with self._schedule_lock:
+                alarm.next_trigger = None
+                self._cancel_scheduled_callback(alarm_id)
             return
 
         # Calculate next trigger time
         next_trigger = self._calculate_next_trigger(alarm.data)
 
         if next_trigger is None:
-            alarm.next_trigger = None
+            async with self._schedule_lock:
+                alarm.next_trigger = None
+                self._cancel_scheduled_callback(alarm_id)
             return
 
         alarm.next_trigger = next_trigger
 
-        # Schedule pre-alarm if configured
+        # Schedule pre-alarm if configured (outside lock - independent operation)
         if alarm.data.pre_alarm_duration > 0:
             pre_alarm_time = next_trigger - timedelta(minutes=alarm.data.pre_alarm_duration)
             if pre_alarm_time > dt_util.now():
                 self._schedule_pre_alarm(alarm_id, pre_alarm_time)
 
-        # Cancel existing callback
-        self._cancel_scheduled_callback(alarm_id)
+        # Critical section: Cancel existing and schedule new callback
+        async with self._schedule_lock:
+            # Cancel existing callback
+            self._cancel_scheduled_callback(alarm_id)
 
-        # Schedule new callback
-        self._scheduled_callbacks[alarm_id] = async_track_point_in_time(
-            self.hass,
-            lambda now, aid=alarm_id: self.hass.loop.call_soon_threadsafe(
-                lambda: self.hass.async_create_task(self._async_handle_alarm_trigger(aid))
-            ),
-            next_trigger,
-        )
+            # Schedule new callback
+            self._scheduled_callbacks[alarm_id] = async_track_point_in_time(
+                self.hass,
+                lambda now, aid=alarm_id: self.hass.loop.call_soon_threadsafe(
+                    lambda: self.hass.async_create_task(self._async_handle_alarm_trigger(aid))
+                ),
+                next_trigger,
+            )
 
         _LOGGER.debug(
             "Scheduled alarm %s for %s",
@@ -545,7 +558,7 @@ class AlarmClockCoordinator:
         else:
             # Re-arm and schedule next
             await alarm.transition_to(AlarmState.ARMED)
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
 
         self._notify_update()
 
@@ -658,7 +671,7 @@ class AlarmClockCoordinator:
         else:
             # Re-arm and schedule next
             await alarm.transition_to(AlarmState.ARMED)
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
 
         self._notify_update()
         return True
@@ -704,7 +717,7 @@ class AlarmClockCoordinator:
 
         # Re-schedule
         if alarm.state == AlarmState.ARMED:
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
 
         self._notify_update()
         return True
@@ -737,7 +750,7 @@ class AlarmClockCoordinator:
 
         if enabled:
             await alarm.transition_to(AlarmState.ARMED, force=True)
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
 
             # Fire event
             self._fire_event(AlarmEvent.ARMED, alarm.get_event_data())
@@ -791,7 +804,7 @@ class AlarmClockCoordinator:
 
         # Reschedule
         if alarm.state == AlarmState.ARMED:
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
 
         # Fire event
         event_data = alarm.get_event_data()
@@ -813,7 +826,7 @@ class AlarmClockCoordinator:
 
         # Reschedule
         if alarm.state == AlarmState.ARMED:
-            self._schedule_alarm(alarm_id)
+            await self._schedule_alarm(alarm_id)
 
         self._notify_update()
         return True
@@ -1073,7 +1086,7 @@ class AlarmClockCoordinator:
             ):
                 issues.append(f"Alarm {alarm_id} is armed but not scheduled")
                 # Try to fix
-                self._schedule_alarm(alarm_id)
+                await self._schedule_alarm(alarm_id)
 
             # Snoozed without callback
             if alarm.state == AlarmState.SNOOZED and alarm_id not in self._snooze_callbacks:
