@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-01-29
+
+### Added
+- Descriptive section header for default script settings in device options
+- Tooltips for skip and delete icon buttons
+
+### Changed
+- **UI Improvements**: Skip and delete buttons redesigned as icon buttons
+  - Positioned below the alarm toggle switch for better layout
+  - Changed from text buttons to icon-only buttons with tooltips
+  - More compact and intuitive placement
+- **UI Improvements**: Weekday pills now adapt to available space
+  - Removed minimum width constraint to prevent overflow
+  - Pills now flex proportionally to container width
+  - Optimized padding for better space utilization
+- Config flow: Individual script fields now hidden when "Use Device Defaults" is enabled
+  - Cleaner UI that only shows relevant options
+  - Reduces configuration complexity when using device defaults
+- Config flow: Enhanced labels and descriptions for all settings
+  - Added descriptive text for script timeout and retry count fields
+  - Number selectors now use BOX mode for cleaner appearance
+  - Used suggested_value instead of default for better UX
+
+### Technical
+- Updated alarm header layout to use flexbox column for toggle and icon buttons
+- Changed day-pill flex properties from `flex: 1` to `flex: 1 1 0` for better responsiveness
+- Reduced day-pill padding and removed min-width constraint
+- Conditional schema building in config flow based on use_device_defaults setting
+
 ## [1.0.5] - 2026-01-29
 
 ### Added
@@ -118,6 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Script entity validation to prevent invalid references
 - Atomic state transitions to prevent race conditions
 
-[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.0...v1.0.5
 [1.0.0]: https://github.com/fappsde/alarm_clock_hass_lovelace/releases/tag/v1.0.0

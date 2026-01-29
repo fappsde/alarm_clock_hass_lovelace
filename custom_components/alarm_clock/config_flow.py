@@ -242,39 +242,57 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
             return self.async_create_entry(title="", data={})
 
-        return self.async_show_form(
-            step_id="alarm_advanced",
-            data_schema=vol.Schema(
+        # Build schema conditionally based on use_device_defaults
+        use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
+
+        schema_dict = {
+            vol.Optional(
+                CONF_SNOOZE_DURATION, default=DEFAULT_SNOOZE_DURATION
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=60,
+                    step=1,
+                    unit_of_measurement="minutes",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_MAX_SNOOZE_COUNT, default=DEFAULT_MAX_SNOOZE_COUNT
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=10, step=1, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
+            vol.Optional(
+                CONF_AUTO_DISMISS_TIMEOUT, default=DEFAULT_AUTO_DISMISS_TIMEOUT
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=180,
+                    step=1,
+                    unit_of_measurement="minutes",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_PRE_ALARM_DURATION, default=DEFAULT_PRE_ALARM_DURATION
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=60,
+                    step=1,
+                    unit_of_measurement="minutes",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(CONF_USE_DEVICE_DEFAULTS, default=True): selector.BooleanSelector(),
+        }
+
+        # Only show individual script fields if NOT using device defaults
+        if not use_defaults:
+            schema_dict.update(
                 {
-                    vol.Optional(
-                        CONF_SNOOZE_DURATION, default=DEFAULT_SNOOZE_DURATION
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1, max=60, step=1, unit_of_measurement="minutes"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_MAX_SNOOZE_COUNT, default=DEFAULT_MAX_SNOOZE_COUNT
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0, max=10, step=1)
-                    ),
-                    vol.Optional(
-                        CONF_AUTO_DISMISS_TIMEOUT, default=DEFAULT_AUTO_DISMISS_TIMEOUT
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1, max=180, step=1, unit_of_measurement="minutes"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_PRE_ALARM_DURATION, default=DEFAULT_PRE_ALARM_DURATION
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=0, max=60, step=1, unit_of_measurement="minutes"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_USE_DEVICE_DEFAULTS, default=True
-                    ): selector.BooleanSelector(),
                     vol.Optional(CONF_SCRIPT_PRE_ALARM): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="script")
                     ),
@@ -297,16 +315,29 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                         CONF_SCRIPT_TIMEOUT, default=DEFAULT_SCRIPT_TIMEOUT
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=1, max=300, step=1, unit_of_measurement="seconds"
+                            min=1,
+                            max=300,
+                            step=1,
+                            unit_of_measurement="seconds",
+                            mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
                     vol.Optional(
                         CONF_SCRIPT_RETRY_COUNT, default=DEFAULT_SCRIPT_RETRY_COUNT
                     ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0, max=10, step=1)
+                        selector.NumberSelectorConfig(
+                            min=0, max=10, step=1, mode=selector.NumberSelectorMode.BOX
+                        )
                     ),
                 }
-            ),
+            )
+
+        return self.async_show_form(
+            step_id="alarm_advanced",
+            description_placeholders={
+                "info": "Configure advanced alarm settings. If 'Use Device Defaults' is enabled, the alarm will use the device-level default scripts configured in Settings → Default Scripts.",
+            },
+            data_schema=vol.Schema(schema_dict),
         )
 
     async def async_step_manage_alarms(
@@ -480,61 +511,129 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="default_scripts",
+            description_placeholders={
+                "info": "Configure default scripts that will be used by all alarms with 'Use Device Defaults' enabled. These scripts apply automatically to new alarms.",
+            },
             data_schema=vol.Schema(
                 {
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_PRE_ALARM,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_PRE_ALARM),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_PRE_ALARM)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ALARM,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_ALARM),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ALARM)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_POST_ALARM,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_POST_ALARM),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_POST_ALARM)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_SNOOZE,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_SNOOZE),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_SNOOZE)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_DISMISS,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_DISMISS),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_DISMISS)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_ARM,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_ARM),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_ARM)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_CANCEL,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_CANCEL),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_CANCEL)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_SKIP,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_SKIP),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_SKIP)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_FALLBACK,
-                        default=current_options.get(CONF_DEFAULT_SCRIPT_FALLBACK),
-                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
+                        description={
+                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_FALLBACK)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(
+                            domain="script",
+                        )
+                    ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_TIMEOUT,
-                        default=current_options.get(
-                            CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
-                        ),
+                        description={
+                            "suggested_value": current_options.get(
+                                CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+                            )
+                        },
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=1, max=300, step=1, unit_of_measurement="seconds"
+                            min=1,
+                            max=300,
+                            step=1,
+                            unit_of_measurement="seconds",
+                            mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_RETRY_COUNT,
-                        default=current_options.get(
-                            CONF_DEFAULT_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
-                        ),
+                        description={
+                            "suggested_value": current_options.get(
+                                CONF_DEFAULT_SCRIPT_RETRY_COUNT,
+                                DEFAULT_SCRIPT_RETRY_COUNT,
+                            )
+                        },
                     ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0, max=10, step=1)
+                        selector.NumberSelectorConfig(
+                            min=0, max=10, step=1, mode=selector.NumberSelectorMode.BOX
+                        )
                     ),
                 }
             ),
