@@ -55,6 +55,13 @@ from .const import (
     DOMAIN,
     WEEKDAYS,
 )
+from .state_machine import AlarmStateMachine
+from .validation import (
+    validate_alarm_name,
+    validate_duration,
+    validate_time_format,
+    ValidationError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,131 +127,8 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
         # Note: self.config_entry is automatically set by the base class
         self._alarm_data: dict[str, Any] = {}
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the options."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["add_alarm", "manage_alarms", "default_scripts", "global_settings"],
-        )
-
-    async def async_step_add_alarm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle adding a new alarm."""
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            # Validate time format - TimeSelector can return dict, "HH:MM", or "HH:MM:SS"
-            try:
-                time_value = user_input[CONF_ALARM_TIME]
-                if isinstance(time_value, dict):
-                    # TimeSelector may return dict with hours and minutes
-                    hour = time_value.get("hours", 0)
-                    minute = time_value.get("minutes", 0)
-                    if not (0 <= hour <= 23 and 0 <= minute <= 59):
-                        raise ValueError("Out of range")
-                else:
-                    # String format validation - handle both "HH:MM" and "HH:MM:SS"
-                    time_str = str(time_value)
-                    parts = time_str.split(":")
-                    if len(parts) < 2:
-                        raise ValueError("Invalid format")
-                    hour, minute = int(parts[0]), int(parts[1])
-                    if not (0 <= hour <= 23 and 0 <= minute <= 59):
-                        raise ValueError("Out of range")
-            except (ValueError, AttributeError, TypeError) as err:
-                _LOGGER.debug(
-                    "Time validation failed: %s (value: %s)", err, user_input.get(CONF_ALARM_TIME)
-                )
-                errors[CONF_ALARM_TIME] = "invalid_time"
-
-            if not errors:
-                # Store alarm data for advanced settings
-                self._alarm_data = user_input
-                return await self.async_step_alarm_advanced()
-
-        # Provide default time of 7:00 AM
-        default_time = {"hours": 7, "minutes": 0}
-
-        return self.async_show_form(
-            step_id="add_alarm",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_ALARM_NAME): cv.string,
-                    vol.Required(CONF_ALARM_TIME, default=default_time): selector.TimeSelector(),
-                    vol.Required(CONF_DAYS, default=WEEKDAYS[:5]): _weekday_selector(),
-                    vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
-                    vol.Optional(CONF_ENABLED, default=True): cv.boolean,
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_alarm_advanced(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle advanced alarm settings."""
-        if user_input is not None:
-            # Merge with basic alarm data
-            alarm_data = {**self._alarm_data, **user_input}
-
-            # Add the alarm via coordinator
-            coordinator = self.hass.data[DOMAIN].get(self.config_entry.entry_id)
-            if coordinator:
-                import uuid
-
-                from .state_machine import AlarmData
-
-                alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
-
-                # Convert time selector output to HH:MM string
-                time_value = alarm_data[CONF_ALARM_TIME]
-                if isinstance(time_value, dict):
-                    time_str = (
-                        f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
-                    )
-                else:
-                    # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
-                    time_parts = str(time_value).split(":")
-                    time_str = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
-
-                new_alarm = AlarmData(
-                    alarm_id=alarm_id,
-                    name=alarm_data[CONF_ALARM_NAME],
-                    time=time_str,
-                    days=alarm_data.get(CONF_DAYS, WEEKDAYS[:5]),
-                    one_time=alarm_data.get(CONF_ONE_TIME, False),
-                    enabled=alarm_data.get(CONF_ENABLED, True),
-                    snooze_duration=alarm_data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
-                    max_snooze_count=alarm_data.get(
-                        CONF_MAX_SNOOZE_COUNT, DEFAULT_MAX_SNOOZE_COUNT
-                    ),
-                    auto_dismiss_timeout=alarm_data.get(
-                        CONF_AUTO_DISMISS_TIMEOUT, DEFAULT_AUTO_DISMISS_TIMEOUT
-                    ),
-                    pre_alarm_duration=alarm_data.get(
-                        CONF_PRE_ALARM_DURATION, DEFAULT_PRE_ALARM_DURATION
-                    ),
-                    use_device_defaults=alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True),
-                    script_pre_alarm=alarm_data.get(CONF_SCRIPT_PRE_ALARM),
-                    script_alarm=alarm_data.get(CONF_SCRIPT_ALARM),
-                    script_post_alarm=alarm_data.get(CONF_SCRIPT_POST_ALARM),
-                    script_on_snooze=alarm_data.get(CONF_SCRIPT_ON_SNOOZE),
-                    script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
-                    script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
-                    script_timeout=alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
-                    script_retry_count=alarm_data.get(
-                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
-                    ),
-                )
-                await coordinator.async_add_alarm(new_alarm)
-
-            # Clear the alarm data after successful submission
-            self._alarm_data = {}
-
-            return self.async_create_entry(title="", data={})
-
-        # Build schema conditionally based on use_device_defaults
-        use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
-
+    def _build_advanced_schema(self, use_defaults: bool) -> vol.Schema:
+        """Build the advanced alarm settings schema."""
         schema_dict = {
             vol.Optional(
                 CONF_SNOOZE_DURATION, default=DEFAULT_SNOOZE_DURATION
@@ -332,6 +216,197 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 }
             )
 
+        return vol.Schema(schema_dict)
+
+    def _build_edit_alarm_schema(self, alarm: AlarmStateMachine) -> vol.Schema:
+        """Build the edit alarm schema with current values."""
+        # Parse current time
+        try:
+            hour, minute = map(int, alarm.data.time.split(":"))
+            current_time = {"hours": hour, "minutes": minute}
+        except (ValueError, AttributeError):
+            current_time = {"hours": 7, "minutes": 0}
+
+        return vol.Schema(
+            {
+                vol.Required(CONF_ALARM_NAME, default=alarm.data.name): cv.string,
+                vol.Required(CONF_ALARM_TIME, default=current_time): selector.TimeSelector(),
+                vol.Required(CONF_DAYS, default=alarm.data.days): _weekday_selector(),
+                vol.Optional(
+                    CONF_SNOOZE_DURATION, default=alarm.data.snooze_duration
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1, max=60, step=1, unit_of_measurement="minutes"
+                    )
+                ),
+                vol.Optional(
+                    CONF_MAX_SNOOZE_COUNT, default=alarm.data.max_snooze_count
+                ): selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=10, step=1)),
+                vol.Optional(
+                    CONF_AUTO_DISMISS_TIMEOUT, default=alarm.data.auto_dismiss_timeout
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1, max=180, step=1, unit_of_measurement="minutes"
+                    )
+                ),
+                vol.Optional(
+                    CONF_PRE_ALARM_DURATION, default=alarm.data.pre_alarm_duration
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0, max=60, step=1, unit_of_measurement="minutes"
+                    )
+                ),
+            }
+        )
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Manage the options."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["add_alarm", "manage_alarms", "default_scripts", "global_settings"],
+        )
+
+    async def async_step_add_alarm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Handle adding a new alarm."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Validate alarm name
+            try:
+                user_input[CONF_ALARM_NAME] = validate_alarm_name(user_input[CONF_ALARM_NAME])
+            except ValidationError as err:
+                _LOGGER.debug("Alarm name validation failed: %s", err)
+                errors[CONF_ALARM_NAME] = "invalid_name"
+
+            # Validate time format using validation utility
+            try:
+                validate_time_format(user_input[CONF_ALARM_TIME])
+            except ValidationError as err:
+                _LOGGER.debug(
+                    "Time validation failed: %s (value: %s)", err, user_input.get(CONF_ALARM_TIME)
+                )
+                errors[CONF_ALARM_TIME] = "invalid_time"
+
+            if not errors:
+                # Store alarm data for advanced settings
+                self._alarm_data = user_input
+                return await self.async_step_alarm_advanced()
+
+        # Provide default time of 7:00 AM
+        default_time = {"hours": 7, "minutes": 0}
+
+        return self.async_show_form(
+            step_id="add_alarm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_ALARM_NAME): cv.string,
+                    vol.Required(CONF_ALARM_TIME, default=default_time): selector.TimeSelector(),
+                    vol.Required(CONF_DAYS, default=WEEKDAYS[:5]): _weekday_selector(),
+                    vol.Optional(CONF_ONE_TIME, default=False): cv.boolean,
+                    vol.Optional(CONF_ENABLED, default=True): cv.boolean,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_alarm_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle advanced alarm settings."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Validate numeric fields
+            numeric_validations = {
+                CONF_SNOOZE_DURATION: (1, 60),
+                CONF_MAX_SNOOZE_COUNT: (0, 10),
+                CONF_AUTO_DISMISS_TIMEOUT: (1, 180),
+                CONF_PRE_ALARM_DURATION: (0, 60),
+                CONF_SCRIPT_TIMEOUT: (1, 300),
+                CONF_SCRIPT_RETRY_COUNT: (0, 10),
+            }
+
+            for field, (min_val, max_val) in numeric_validations.items():
+                if field in user_input:
+                    try:
+                        user_input[field] = validate_duration(
+                            user_input[field], field, min_val, max_val
+                        )
+                    except ValidationError as err:
+                        _LOGGER.debug("Validation failed for %s: %s", field, err)
+                        errors[field] = "invalid_value"
+
+            if errors:
+                # Re-show form with errors
+                use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
+                return self.async_show_form(
+                    step_id="alarm_advanced",
+                    data_schema=self._build_advanced_schema(use_defaults),
+                    errors=errors,
+                )
+
+            # Merge with basic alarm data
+            alarm_data = {**self._alarm_data, **user_input}
+
+            # Add the alarm via coordinator
+            coordinator = self.hass.data[DOMAIN].get(self.config_entry.entry_id)
+            if coordinator:
+                import uuid
+
+                from .state_machine import AlarmData
+
+                alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
+
+                # Convert time selector output to HH:MM string
+                time_value = alarm_data[CONF_ALARM_TIME]
+                if isinstance(time_value, dict):
+                    time_str = (
+                        f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
+                    )
+                else:
+                    # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
+                    time_parts = str(time_value).split(":")
+                    time_str = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
+
+                new_alarm = AlarmData(
+                    alarm_id=alarm_id,
+                    name=alarm_data[CONF_ALARM_NAME],
+                    time=time_str,
+                    days=alarm_data.get(CONF_DAYS, WEEKDAYS[:5]),
+                    one_time=alarm_data.get(CONF_ONE_TIME, False),
+                    enabled=alarm_data.get(CONF_ENABLED, True),
+                    snooze_duration=alarm_data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
+                    max_snooze_count=alarm_data.get(
+                        CONF_MAX_SNOOZE_COUNT, DEFAULT_MAX_SNOOZE_COUNT
+                    ),
+                    auto_dismiss_timeout=alarm_data.get(
+                        CONF_AUTO_DISMISS_TIMEOUT, DEFAULT_AUTO_DISMISS_TIMEOUT
+                    ),
+                    pre_alarm_duration=alarm_data.get(
+                        CONF_PRE_ALARM_DURATION, DEFAULT_PRE_ALARM_DURATION
+                    ),
+                    use_device_defaults=alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True),
+                    script_pre_alarm=alarm_data.get(CONF_SCRIPT_PRE_ALARM),
+                    script_alarm=alarm_data.get(CONF_SCRIPT_ALARM),
+                    script_post_alarm=alarm_data.get(CONF_SCRIPT_POST_ALARM),
+                    script_on_snooze=alarm_data.get(CONF_SCRIPT_ON_SNOOZE),
+                    script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
+                    script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
+                    script_timeout=alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
+                    script_retry_count=alarm_data.get(
+                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                    ),
+                )
+                await coordinator.async_add_alarm(new_alarm)
+
+            # Clear the alarm data after successful submission
+            self._alarm_data = {}
+
+            return self.async_create_entry(title="", data={})
+
+        # Build schema using helper method
+        use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
+
         alarm_name = self._alarm_data.get(CONF_ALARM_NAME, "New Alarm")
         return self.async_show_form(
             step_id="alarm_advanced",
@@ -339,7 +414,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 "alarm_name": alarm_name,
                 "info": "Configure advanced alarm settings. If 'Use Device Defaults' is enabled, the alarm will use the device-level default scripts configured in Settings → Default Scripts.",
             },
-            data_schema=vol.Schema(schema_dict),
+            data_schema=self._build_advanced_schema(use_defaults),
         )
 
     async def async_step_manage_alarms(
@@ -420,21 +495,53 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             return self.async_abort(reason="alarm_not_found")
 
         alarm = coordinator.alarms[alarm_id]
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Update alarm
-            alarm.data.name = user_input[CONF_ALARM_NAME]
+            # Validate alarm name
+            try:
+                validated_name = validate_alarm_name(user_input[CONF_ALARM_NAME])
+            except ValidationError as err:
+                _LOGGER.debug("Alarm name validation failed: %s", err)
+                errors[CONF_ALARM_NAME] = "invalid_name"
 
-            time_value = user_input[CONF_ALARM_TIME]
-            if isinstance(time_value, dict):
-                alarm.data.time = (
-                    f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
+            # Validate time format
+            try:
+                hours, minutes = validate_time_format(user_input[CONF_ALARM_TIME])
+                time_str = f"{hours:02d}:{minutes:02d}"
+            except ValidationError as err:
+                _LOGGER.debug("Time validation failed: %s", err)
+                errors[CONF_ALARM_TIME] = "invalid_time"
+
+            # Validate numeric fields
+            numeric_validations = {
+                CONF_SNOOZE_DURATION: (1, 60),
+                CONF_MAX_SNOOZE_COUNT: (0, 10),
+                CONF_AUTO_DISMISS_TIMEOUT: (1, 180),
+                CONF_PRE_ALARM_DURATION: (0, 60),
+            }
+
+            for field, (min_val, max_val) in numeric_validations.items():
+                if field in user_input:
+                    try:
+                        user_input[field] = validate_duration(
+                            user_input[field], field, min_val, max_val
+                        )
+                    except ValidationError as err:
+                        _LOGGER.debug("Validation failed for %s: %s", field, err)
+                        errors[field] = "invalid_value"
+
+            if errors:
+                # Re-show form with errors
+                return self.async_show_form(
+                    step_id="edit_alarm",
+                    data_schema=self._build_edit_alarm_schema(alarm),
+                    errors=errors,
                 )
-            else:
-                # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
-                time_parts = str(time_value).split(":")
-                alarm.data.time = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
 
+            # Update alarm with validated values
+            alarm.data.name = validated_name
+            alarm.data.time = time_str
             alarm.data.days = user_input.get(CONF_DAYS, alarm.data.days)
             alarm.data.snooze_duration = user_input.get(
                 CONF_SNOOZE_DURATION, alarm.data.snooze_duration
@@ -452,48 +559,10 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             await coordinator.async_update_alarm(alarm.data)
             return self.async_create_entry(title="", data={})
 
-        # Parse current time
-        try:
-            hour, minute = map(int, alarm.data.time.split(":"))
-            current_time = {"hours": hour, "minutes": minute}
-        except (ValueError, AttributeError):
-            current_time = {"hours": 7, "minutes": 0}
-
+        # Show form with current alarm data
         return self.async_show_form(
             step_id="edit_alarm",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_ALARM_NAME, default=alarm.data.name): cv.string,
-                    vol.Required(CONF_ALARM_TIME, default=current_time): selector.TimeSelector(),
-                    vol.Required(CONF_DAYS, default=alarm.data.days): _weekday_selector(),
-                    vol.Optional(
-                        CONF_SNOOZE_DURATION, default=alarm.data.snooze_duration
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1, max=60, step=1, unit_of_measurement="minutes"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_MAX_SNOOZE_COUNT, default=alarm.data.max_snooze_count
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0, max=10, step=1)
-                    ),
-                    vol.Optional(
-                        CONF_AUTO_DISMISS_TIMEOUT, default=alarm.data.auto_dismiss_timeout
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=1, max=180, step=1, unit_of_measurement="minutes"
-                        )
-                    ),
-                    vol.Optional(
-                        CONF_PRE_ALARM_DURATION, default=alarm.data.pre_alarm_duration
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=0, max=60, step=1, unit_of_measurement="minutes"
-                        )
-                    ),
-                }
-            ),
+            data_schema=self._build_edit_alarm_schema(alarm),
         )
 
     async def async_step_default_scripts(
