@@ -57,10 +57,10 @@ from .const import (
 )
 from .state_machine import AlarmStateMachine
 from .validation import (
+    ValidationError,
     validate_alarm_name,
     validate_duration,
     validate_time_format,
-    ValidationError,
 )
 
 _LOGGER = logging.getLogger(__name__)
