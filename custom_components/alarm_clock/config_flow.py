@@ -183,64 +183,78 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Handle advanced alarm settings."""
         if user_input is not None:
-            # Merge with basic alarm data
-            alarm_data = {**self._alarm_data, **user_input}
+            # Check if only the toggle was changed - if so, re-show form with updated schema
+            if CONF_USE_DEVICE_DEFAULTS in user_input:
+                # Update the alarm data with the toggle value
+                self._alarm_data[CONF_USE_DEVICE_DEFAULTS] = user_input[CONF_USE_DEVICE_DEFAULTS]
 
-            # Add the alarm via coordinator
-            coordinator = self.hass.data[DOMAIN].get(self.config_entry.entry_id)
-            if coordinator:
-                import uuid
-
-                from .state_machine import AlarmData
-
-                alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
-
-                # Convert time selector output to HH:MM string
-                time_value = alarm_data[CONF_ALARM_TIME]
-                if isinstance(time_value, dict):
-                    time_str = (
-                        f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
-                    )
+                # If only the toggle was provided (form just toggled, not submitted)
+                # Re-show the form with updated schema
+                if len(user_input) <= 5:  # Only basic fields + toggle
+                    # Re-show form to update visible fields
+                    pass  # Fall through to show form again
                 else:
-                    # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
-                    time_parts = str(time_value).split(":")
-                    time_str = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
+                    # Full form submission - proceed with creating alarm
+                    # Merge with basic alarm data
+                    alarm_data = {**self._alarm_data, **user_input}
 
-                new_alarm = AlarmData(
-                    alarm_id=alarm_id,
-                    name=alarm_data[CONF_ALARM_NAME],
-                    time=time_str,
-                    days=alarm_data.get(CONF_DAYS, WEEKDAYS[:5]),
-                    one_time=alarm_data.get(CONF_ONE_TIME, False),
-                    enabled=alarm_data.get(CONF_ENABLED, True),
-                    snooze_duration=alarm_data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
-                    max_snooze_count=alarm_data.get(
-                        CONF_MAX_SNOOZE_COUNT, DEFAULT_MAX_SNOOZE_COUNT
-                    ),
-                    auto_dismiss_timeout=alarm_data.get(
-                        CONF_AUTO_DISMISS_TIMEOUT, DEFAULT_AUTO_DISMISS_TIMEOUT
-                    ),
-                    pre_alarm_duration=alarm_data.get(
-                        CONF_PRE_ALARM_DURATION, DEFAULT_PRE_ALARM_DURATION
-                    ),
-                    use_device_defaults=alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True),
-                    script_pre_alarm=alarm_data.get(CONF_SCRIPT_PRE_ALARM),
-                    script_alarm=alarm_data.get(CONF_SCRIPT_ALARM),
-                    script_post_alarm=alarm_data.get(CONF_SCRIPT_POST_ALARM),
-                    script_on_snooze=alarm_data.get(CONF_SCRIPT_ON_SNOOZE),
-                    script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
-                    script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
-                    script_timeout=alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
-                    script_retry_count=alarm_data.get(
-                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
-                    ),
-                )
-                await coordinator.async_add_alarm(new_alarm)
+                    # Add the alarm via coordinator
+                    coordinator = self.hass.data[DOMAIN].get(self.config_entry.entry_id)
+                    if coordinator:
+                        import uuid
 
-            # Clear the alarm data after successful submission
-            self._alarm_data = {}
+                        from .state_machine import AlarmData
 
-            return self.async_create_entry(title="", data={})
+                        alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
+
+                        # Convert time selector output to HH:MM string
+                        time_value = alarm_data[CONF_ALARM_TIME]
+                        if isinstance(time_value, dict):
+                            time_str = f"{time_value.get('hours', 0):02d}:{time_value.get('minutes', 0):02d}"
+                        else:
+                            # Handle "HH:MM" or "HH:MM:SS" format - only keep HH:MM
+                            time_parts = str(time_value).split(":")
+                            time_str = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
+
+                        new_alarm = AlarmData(
+                            alarm_id=alarm_id,
+                            name=alarm_data[CONF_ALARM_NAME],
+                            time=time_str,
+                            days=alarm_data.get(CONF_DAYS, WEEKDAYS[:5]),
+                            one_time=alarm_data.get(CONF_ONE_TIME, False),
+                            enabled=alarm_data.get(CONF_ENABLED, True),
+                            snooze_duration=alarm_data.get(
+                                CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION
+                            ),
+                            max_snooze_count=alarm_data.get(
+                                CONF_MAX_SNOOZE_COUNT, DEFAULT_MAX_SNOOZE_COUNT
+                            ),
+                            auto_dismiss_timeout=alarm_data.get(
+                                CONF_AUTO_DISMISS_TIMEOUT, DEFAULT_AUTO_DISMISS_TIMEOUT
+                            ),
+                            pre_alarm_duration=alarm_data.get(
+                                CONF_PRE_ALARM_DURATION, DEFAULT_PRE_ALARM_DURATION
+                            ),
+                            use_device_defaults=alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True),
+                            script_pre_alarm=alarm_data.get(CONF_SCRIPT_PRE_ALARM),
+                            script_alarm=alarm_data.get(CONF_SCRIPT_ALARM),
+                            script_post_alarm=alarm_data.get(CONF_SCRIPT_POST_ALARM),
+                            script_on_snooze=alarm_data.get(CONF_SCRIPT_ON_SNOOZE),
+                            script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
+                            script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
+                            script_timeout=alarm_data.get(
+                                CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+                            ),
+                            script_retry_count=alarm_data.get(
+                                CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                            ),
+                        )
+                        await coordinator.async_add_alarm(new_alarm)
+
+                    # Clear the alarm data after successful submission
+                    self._alarm_data = {}
+
+                    return self.async_create_entry(title="", data={})
 
         # Build schema conditionally based on use_device_defaults
         use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
@@ -332,9 +346,11 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 }
             )
 
+        alarm_name = self._alarm_data.get(CONF_ALARM_NAME, "New Alarm")
         return self.async_show_form(
             step_id="alarm_advanced",
             description_placeholders={
+                "alarm_name": alarm_name,
                 "info": "Configure advanced alarm settings. If 'Use Device Defaults' is enabled, the alarm will use the device-level default scripts configured in Settings → Default Scripts.",
             },
             data_schema=vol.Schema(schema_dict),

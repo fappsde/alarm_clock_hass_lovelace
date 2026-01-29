@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.6";
+const CARD_VERSION = "1.0.7";
 
 // Log card info
 console.info(
@@ -183,7 +183,7 @@ class AlarmClockCard extends LitElement {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
       }
 
       .alarm-icon-buttons {
@@ -821,7 +821,7 @@ class AlarmClockCard extends LitElement {
       <ha-card class="${isCompact ? "compact" : ""}">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          ${this.config.show_next_alarm && nextAlarmEntity
+          ${this.config.show_next_alarm
             ? html`
                 <div class="next-alarm">
                   Next:
@@ -969,20 +969,20 @@ class AlarmClockCard extends LitElement {
   }
 
   _formatNextAlarm(entity) {
-    if (!entity || !entity.state || entity.state === "unknown") {
-      return "None";
+    if (!entity || !entity.state || entity.state === "unknown" || entity.state === "unavailable") {
+      return "No next alarm";
     }
 
     const nextTime = new Date(entity.state);
     if (isNaN(nextTime.getTime())) {
-      return "None";
+      return "No next alarm";
     }
 
     const now = new Date();
     const diff = nextTime - now;
 
     if (diff < 0) {
-      return "None";
+      return "No next alarm";
     }
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -1013,6 +1013,7 @@ class AlarmClockCard extends LitElement {
     const skipNext = attrs.skip_next || false;
 
     const days = attrs.days || [];
+    const isOneTime = days.length === 1; // One-time alarm if only one day selected
     const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
     const dayNames = [
       "monday",
@@ -1046,12 +1047,15 @@ class AlarmClockCard extends LitElement {
               ${skipNext && !isRinging && !isSnoozed
                 ? html`<span class="status-badge skip">Skip</span>`
                 : ""}
+              ${isOneTime && !isRinging && !isSnoozed && !skipNext
+                ? html`<span class="status-badge">One-time</span>`
+                : ""}
             </div>
             <div class="alarm-name">${attrs.alarm_name || "Alarm"}</div>
             ${attrs.next_trigger
               ? html`
                   <div class="countdown">
-                    ${this._formatCountdown(attrs.next_trigger)}
+                    ${this._formatCountdown(attrs.next_trigger, isOneTime)}
                   </div>
                 `
               : ""}
@@ -1169,7 +1173,7 @@ class AlarmClockCard extends LitElement {
     `;
   }
 
-  _formatCountdown(nextTrigger) {
+  _formatCountdown(nextTrigger, isOneTime = false) {
     if (!nextTrigger) return "";
 
     const next = new Date(nextTrigger);
@@ -1181,10 +1185,25 @@ class AlarmClockCard extends LitElement {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
+    // For one-time alarms, include the date
+    let countdown = "";
     if (hours > 0) {
-      return `in ${hours}h ${minutes}m`;
+      countdown = `in ${hours}h ${minutes}m`;
+    } else {
+      countdown = `in ${minutes}m`;
     }
-    return `in ${minutes}m`;
+
+    // Add date for one-time alarms or alarms more than 24h away
+    if (isOneTime || hours > 24) {
+      const dateStr = next.toLocaleDateString([], {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      });
+      return `${countdown} (${dateStr})`;
+    }
+
+    return countdown;
   }
 
   _formatSnoozeEnd(snoozeEnd) {
@@ -1213,8 +1232,41 @@ class AlarmClockCard extends LitElement {
       : [...currentDays, day];
 
     if (newDays.length === 0) {
-      // Don't allow removing all days
-      console.warn("Cannot remove all days from alarm");
+      // Convert to one-time alarm
+      // Calculate which day it should trigger (today if time hasn't passed, tomorrow if it has)
+      const now = new Date();
+      const [alarmHour, alarmMinute] = (alarm.attributes.alarm_time || "07:00").split(":").map(Number);
+      const alarmToday = new Date();
+      alarmToday.setHours(alarmHour, alarmMinute, 0, 0);
+
+      // Determine trigger day
+      let triggerDate;
+      if (alarmToday > now) {
+        // Time hasn't passed today, use today
+        triggerDate = now;
+      } else {
+        // Time has passed, use tomorrow
+        triggerDate = new Date(now);
+        triggerDate.setDate(triggerDate.getDate() + 1);
+      }
+
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const triggerDay = dayNames[triggerDate.getDay()];
+
+      console.log("Converting to one-time alarm for", triggerDay);
+
+      this.hass.callService("alarm_clock", "set_days", {
+        entity_id: alarm.entity_id,
+        days: [triggerDay],
+      }).catch(err => {
+        console.error("Failed to set days:", err);
+        alert("Failed to set alarm days: " + err.message);
+      });
+
+      // Haptic feedback
+      if (navigator.vibrate) {
+        navigator.vibrate(30);
+      }
       return;
     }
 
@@ -1399,6 +1451,7 @@ class AlarmClockCard extends LitElement {
     const isEnabled = alarm.state.state === "on";
     const skipNext = attrs.skip_next || false;
     const days = attrs.days || [];
+    const isOneTime = days.length === 1; // One-time alarm if only one day selected
     const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
     const dayNames = [
       "monday",
@@ -1427,6 +1480,9 @@ class AlarmClockCard extends LitElement {
                 : ""}
               ${skipNext && !isRinging && !isSnoozed
                 ? html`<span class="status-badge skip">Skip</span>`
+                : ""}
+              ${isOneTime && !isRinging && !isSnoozed && !skipNext
+                ? html`<span class="status-badge">One-time</span>`
                 : ""}
             </div>
           </div>
@@ -1465,7 +1521,7 @@ class AlarmClockCard extends LitElement {
         ${attrs.next_trigger
           ? html`
               <div class="countdown">
-                ${this._formatCountdown(attrs.next_trigger)}
+                ${this._formatCountdown(attrs.next_trigger, isOneTime)}
               </div>
             `
           : ""}

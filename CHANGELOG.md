@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-01-29
+
+### Added
+- One-time alarm support when all weekdays are unselected
+  - Automatically sets alarm for next occurrence (today if time hasn't passed, tomorrow otherwise)
+  - Visual "One-time" badge displayed for single-day alarms
+  - Date display in countdown for one-time alarms and alarms >24h away
+
+### Changed
+- Next alarm display now shows "No next alarm" when all alarms disabled
+  - Always visible when `show_next_alarm` is enabled
+  - Updates dynamically when alarms are enabled/disabled
+- Increased spacing between toggle switch and skip/delete buttons (8px → 12px)
+
+### Fixed
+- Next alarm status now properly reflects when alarms are disabled
+- Handled "unavailable" state for next alarm sensor
+
 ## [1.0.6] - 2026-01-29
 
 ### Added
@@ -147,7 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Script entity validation to prevent invalid references
 - Atomic state transitions to prevent race conditions
 
-[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.0...v1.0.5
 [1.0.0]: https://github.com/fappsde/alarm_clock_hass_lovelace/releases/tag/v1.0.0

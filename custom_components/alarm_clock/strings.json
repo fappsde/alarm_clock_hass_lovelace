@@ -24,6 +24,7 @@
         "menu_options": {
           "add_alarm": "Add New Alarm",
           "manage_alarms": "Manage Existing Alarms",
+          "default_scripts": "Default Scripts",
           "global_settings": "Global Settings"
         }
       },
@@ -39,19 +40,22 @@
         }
       },
       "alarm_advanced": {
-        "title": "Advanced Alarm Settings",
-        "description": "Configure advanced settings for the alarm.",
+        "title": "Advanced Settings: {alarm_name}",
+        "description": "{info}",
         "data": {
           "snooze_duration": "Snooze Duration",
           "max_snooze_count": "Maximum Snoozes",
           "auto_dismiss_timeout": "Auto-dismiss Timeout",
           "pre_alarm_duration": "Pre-alarm Duration",
+          "use_device_defaults": "Use Device Default Scripts",
           "script_pre_alarm": "Pre-alarm Script",
           "script_alarm": "Alarm Script",
           "script_post_alarm": "Post-alarm Script",
           "script_on_snooze": "On Snooze Script",
           "script_on_dismiss": "On Dismiss Script",
-          "script_fallback": "Fallback Script"
+          "script_fallback": "Fallback Script",
+          "script_timeout": "Script Timeout",
+          "script_retry_count": "Script Retry Count"
         }
       },
       "manage_alarms": {
@@ -79,6 +83,24 @@
           "max_snooze_count": "Maximum Snoozes",
           "auto_dismiss_timeout": "Auto-dismiss Timeout",
           "pre_alarm_duration": "Pre-alarm Duration"
+        }
+      },
+      "default_scripts": {
+        "title": "Device Default Scripts",
+        "description": "{info}",
+        "data": {
+          "default_script_pre_alarm": "Pre-alarm Script",
+          "default_script_alarm": "Alarm Script",
+          "default_script_post_alarm": "Post-alarm Script",
+          "default_script_on_snooze": "On Snooze Script",
+          "default_script_on_dismiss": "On Dismiss Script",
+          "default_script_on_enable": "On Enable Script",
+          "default_script_on_disable": "On Disable Script",
+          "default_script_on_cancel": "On Cancel Script",
+          "default_script_on_skip": "On Skip Script",
+          "default_script_fallback": "Fallback Script",
+          "default_script_timeout": "Script Timeout",
+          "default_script_retry_count": "Script Retry Count"
         }
       },
       "global_settings": {
