@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.3";
+const CARD_VERSION = "1.0.4";
 
 // Log card info
 console.info(
@@ -753,7 +753,7 @@ class AlarmClockCard extends LitElement {
       <ha-card class="${isCompact ? "compact" : ""}">
         <div class="header">
           <div class="title">${this.config.title}</div>
-          ${this.config.show_next_alarm && nextAlarmEntity && this._viewMode === "list"
+          ${this.config.show_next_alarm && nextAlarmEntity
             ? html`
                 <div class="next-alarm">
                   Next:
@@ -1310,8 +1310,8 @@ class AlarmClockCard extends LitElement {
     return html`
       <div class="editor-section">
         <div class="editor-header">
-          <div class="editor-time-container">
-            <div class="alarm-time" style="cursor: default;">
+          <div>
+            <div class="alarm-time" @click="${() => this._openTimePicker(alarm)}">
               ${attrs.alarm_time || "00:00"}
               ${isRinging
                 ? html`<span class="status-badge ringing">Ringing</span>`
@@ -1326,13 +1326,6 @@ class AlarmClockCard extends LitElement {
                 ? html`<span class="status-badge skip">Skip</span>`
                 : ""}
             </div>
-            <button
-              class="time-picker-button"
-              @click="${() => this._openTimePicker(alarm)}"
-            >
-              <ha-icon icon="mdi:clock-edit"></ha-icon>
-              Set Time
-            </button>
           </div>
           <ha-switch
             class="alarm-toggle"
