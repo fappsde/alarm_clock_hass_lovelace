@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.7] - 2026-01-29
+## [1.0.8] - 2026-01-29
+
+### Fixed
+- **CRITICAL**: Fixed infinite loop in config flow causing Home Assistant crash
+  - Config flow would loop infinitely when boolean fields were unchecked
+  - This caused HA to become unresponsive and break HACS integration registry
+  - Simplified form submission logic to handle all cases properly
+- Updated manifest.json version to match release version (was 1.0.0, now 1.0.8)
+- Synchronized version numbers across all files
+
+### Technical
+- Removed complex conditional logic in `async_step_alarm_advanced`
+- Added comprehensive bug analysis documentation (BUGFIX_ANALYSIS.md)
+- Implemented prevention measures and testing protocols
+
+### Note
+**If you experienced crashes with v1.0.7**: Please see BUGFIX_ANALYSIS.md for recovery instructions.
+
+## [1.0.7] - 2026-01-29 [DEPRECATED - Contains Critical Bug]
 
 ### Added
 - One-time alarm support when all weekdays are unselected
@@ -24,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Next alarm status now properly reflects when alarms are disabled
 - Handled "unavailable" state for next alarm sensor
+
+### Known Issues
+- ⚠️ **CRITICAL BUG**: Config flow can cause infinite loop and crash Home Assistant
+- ⚠️ Use version 1.0.8 instead
 
 ## [1.0.6] - 2026-01-29
 
@@ -165,7 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Script entity validation to prevent invalid references
 - Atomic state transitions to prevent race conditions
 
-[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.8...HEAD
+[1.0.8]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/fappsde/alarm_clock_hass_lovelace/compare/v1.0.0...v1.0.5
