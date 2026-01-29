@@ -10,7 +10,7 @@ const html = LitElement.prototype.html;
 const css = LitElement.prototype.css;
 
 // Card version
-const CARD_VERSION = "1.0.2";
+const CARD_VERSION = "1.0.3";
 
 // Log card info
 console.info(
@@ -1126,18 +1126,29 @@ class AlarmClockCard extends LitElement {
   }
 
   _toggleDay(alarm, day, currentDays) {
+    console.log("_toggleDay called", { alarm, day, currentDays });
+
     const newDays = currentDays.includes(day)
       ? currentDays.filter((d) => d !== day)
       : [...currentDays, day];
 
     if (newDays.length === 0) {
       // Don't allow removing all days
+      console.warn("Cannot remove all days from alarm");
       return;
     }
+
+    console.log("Calling set_days service", {
+      entity_id: alarm.entity_id,
+      days: newDays,
+    });
 
     this.hass.callService("alarm_clock", "set_days", {
       entity_id: alarm.entity_id,
       days: newDays,
+    }).catch(err => {
+      console.error("Failed to set days:", err);
+      alert("Failed to set alarm days: " + err.message);
     });
 
     // Haptic feedback
@@ -1147,6 +1158,8 @@ class AlarmClockCard extends LitElement {
   }
 
   _adjustTime(alarm, minutes) {
+    console.log("_adjustTime called", { alarm, minutes });
+
     const currentTime = alarm.attributes.alarm_time || "07:00";
     const [hours, mins] = currentTime.split(":").map(Number);
 
@@ -1160,9 +1173,17 @@ class AlarmClockCard extends LitElement {
       newMins
     ).padStart(2, "0")}`;
 
+    console.log("Calling set_time service", {
+      entity_id: alarm.entity_id,
+      alarm_time: newTime,
+    });
+
     this.hass.callService("alarm_clock", "set_time", {
       entity_id: alarm.entity_id,
       alarm_time: newTime,
+    }).catch(err => {
+      console.error("Failed to adjust time:", err);
+      alert("Failed to adjust alarm time: " + err.message);
     });
 
     // Haptic feedback
@@ -1172,8 +1193,13 @@ class AlarmClockCard extends LitElement {
   }
 
   _snoozeAlarm(alarm) {
+    console.log("_snoozeAlarm called", { alarm });
+
     this.hass.callService("alarm_clock", "snooze", {
       entity_id: alarm.entity_id,
+    }).catch(err => {
+      console.error("Failed to snooze alarm:", err);
+      alert("Failed to snooze alarm: " + err.message);
     });
 
     // Haptic feedback
@@ -1183,8 +1209,13 @@ class AlarmClockCard extends LitElement {
   }
 
   _dismissAlarm(alarm) {
+    console.log("_dismissAlarm called", { alarm });
+
     this.hass.callService("alarm_clock", "dismiss", {
       entity_id: alarm.entity_id,
+    }).catch(err => {
+      console.error("Failed to dismiss alarm:", err);
+      alert("Failed to dismiss alarm: " + err.message);
     });
 
     // Haptic feedback
@@ -1194,9 +1225,17 @@ class AlarmClockCard extends LitElement {
   }
 
   _toggleSkip(alarm, skip) {
+    console.log("_toggleSkip called", { alarm, skip });
+
     const service = skip ? "skip_next" : "cancel_skip";
+
+    console.log("Calling service", service, { entity_id: alarm.entity_id });
+
     this.hass.callService("alarm_clock", service, {
       entity_id: alarm.entity_id,
+    }).catch(err => {
+      console.error("Failed to toggle skip:", err);
+      alert("Failed to toggle skip: " + err.message);
     });
 
     // Haptic feedback
@@ -1471,18 +1510,31 @@ class AlarmClockCard extends LitElement {
   }
 
   _confirmTimePicker() {
+    console.log("_confirmTimePicker called", { timePickerAlarm: this._timePickerAlarm });
+
     const hoursInput = this.shadowRoot.getElementById("hours-input");
     const minutesInput = this.shadowRoot.getElementById("minutes-input");
 
-    if (!hoursInput || !minutesInput) return;
+    if (!hoursInput || !minutesInput) {
+      console.error("Time picker inputs not found");
+      return;
+    }
 
     const hours = hoursInput.value.padStart(2, "0");
     const minutes = minutesInput.value.padStart(2, "0");
     const newTime = `${hours}:${minutes}`;
 
+    console.log("Calling set_time service from time picker", {
+      entity_id: this._timePickerAlarm.entity_id,
+      alarm_time: newTime,
+    });
+
     this.hass.callService("alarm_clock", "set_time", {
       entity_id: this._timePickerAlarm.entity_id,
       alarm_time: newTime,
+    }).catch(err => {
+      console.error("Failed to set time from picker:", err);
+      alert("Failed to set alarm time: " + err.message);
     });
 
     // Haptic feedback
@@ -1494,8 +1546,12 @@ class AlarmClockCard extends LitElement {
   }
 
   async _openAlarmSettings() {
+    console.log("_openAlarmSettings called");
+
     // Get the entry_id from the configured entity
     const configEntity = this.hass.states[this.config.entity];
+    console.log("Config entity:", this.config.entity, configEntity);
+
     if (!configEntity || !configEntity.attributes.entry_id) {
       console.error("Cannot create alarm: No entry_id found for configured entity");
       alert("Cannot create alarm. Please check the card configuration.");
@@ -1506,6 +1562,12 @@ class AlarmClockCard extends LitElement {
     // Generate a unique name based on current time
     const now = new Date();
     const alarmName = `Alarm ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    console.log("Creating alarm:", {
+      name: alarmName,
+      time: "07:00",
+      entry_id: configEntity.attributes.entry_id,
+    });
 
     try {
       await this.hass.callService("alarm_clock", "create_alarm", {
