@@ -595,21 +595,21 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 CONF_DEFAULT_SCRIPT_ON_SKIP,
                 CONF_DEFAULT_SCRIPT_FALLBACK,
             ]
-            
+
             # Start with existing options, but remove all script keys
             # We'll re-add only the non-empty ones from user_input
-            new_options = {k: v for k, v in self.config_entry.options.items() 
-                          if k not in script_entity_keys 
-                          and k != CONF_DEFAULT_SCRIPT_TIMEOUT 
+            new_options = {k: v for k, v in self.config_entry.options.items()
+                          if k not in script_entity_keys
+                          and k != CONF_DEFAULT_SCRIPT_TIMEOUT
                           and k != CONF_DEFAULT_SCRIPT_RETRY_COUNT}
-            
+
             # Process entity selector fields - only add if they have a value
             for key in script_entity_keys:
                 value = user_input.get(key, "")
                 if value:
                     # Has a valid value, add it to options
                     new_options[key] = value
-            
+
             # Process number fields - always include with their values
             new_options[CONF_DEFAULT_SCRIPT_TIMEOUT] = user_input.get(
                 CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
@@ -617,7 +617,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             new_options[CONF_DEFAULT_SCRIPT_RETRY_COUNT] = user_input.get(
                 CONF_DEFAULT_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
             )
-            
+
             # Save updated options to config entry
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
