@@ -938,10 +938,25 @@ class AlarmClockCard extends LitElement {
           if (state.attributes.entry_id === configEntryId) {
             // Only store necessary data to avoid circular references
             // that cause "Maximum call stack size exceeded" errors
+            // Extract only the attributes we actually use to prevent
+            // any nested circular references from HA state objects
+            const attrs = state.attributes;
             alarms.push({
               entity_id: key,
               state: { state: state.state },
-              attributes: { ...state.attributes },
+              attributes: {
+                alarm_id: attrs.alarm_id,
+                alarm_name: attrs.alarm_name,
+                alarm_state: attrs.alarm_state,
+                alarm_time: attrs.alarm_time,
+                days: attrs.days,
+                entry_id: attrs.entry_id,
+                max_snooze_count: attrs.max_snooze_count,
+                next_trigger: attrs.next_trigger,
+                skip_next: attrs.skip_next,
+                snooze_count: attrs.snooze_count,
+                snooze_end_time: attrs.snooze_end_time,
+              },
             });
           }
         }
