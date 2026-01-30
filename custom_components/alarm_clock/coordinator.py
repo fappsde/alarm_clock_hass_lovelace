@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import uuid
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -113,6 +115,9 @@ class AlarmClockCoordinator:
         # Lock for thread-safe alarm scheduling
         self._schedule_lock = asyncio.Lock()
 
+        # Lock for thread-safe callback list operations
+        self._callback_lock = threading.Lock()
+
         # Track if this coordinator registered the services
         self._services_registered = False
 
@@ -202,9 +207,10 @@ class AlarmClockCoordinator:
         # Unregister services if this is the last entry
         await self.async_unregister_services()
 
-        # Clear update callbacks to prevent memory leaks
-        self._update_callbacks.clear()
-        self._entity_adder_callbacks.clear()
+        # Clear update callbacks to prevent memory leaks (thread-safe)
+        with self._callback_lock:
+            self._update_callbacks.clear()
+            self._entity_adder_callbacks.clear()
 
         _LOGGER.info("Alarm clock coordinator stopped")
 
@@ -1010,7 +1016,8 @@ class AlarmClockCoordinator:
                     max_retries,
                 )
 
-                # Execute with timeout
+                # Execute with timeout - use blocking=False to avoid blocking event loop
+                # The script will run asynchronously, preventing startup delays
                 await asyncio.wait_for(
                     self.hass.services.async_call(
                         "script",
@@ -1018,7 +1025,7 @@ class AlarmClockCoordinator:
                         {
                             "alarm_context": context,
                         },
-                        blocking=True,
+                        blocking=False,
                     ),
                     timeout=timeout,
                 )
@@ -1298,45 +1305,47 @@ class AlarmClockCoordinator:
                 callback()
 
     def register_update_callback(self, callback: Callable) -> Callable:
-        """Register a callback for updates."""
-        self._update_callbacks.append(callback)
+        """Register a callback for updates (thread-safe)."""
+        with self._callback_lock:
+            self._update_callbacks.append(callback)
 
         def remove_callback() -> None:
-            if callback in self._update_callbacks:
-                self._update_callbacks.remove(callback)
+            with self._callback_lock:
+                if callback in self._update_callbacks:
+                    self._update_callbacks.remove(callback)
 
         return remove_callback
 
     def register_entity_adder_callback(self, callback: Callable[[str], None]) -> None:
         """Register a callback for when new alarms are added."""
-        self._entity_adder_callbacks.append(callback)
+        with self._callback_lock:
+            self._entity_adder_callbacks.append(callback)
 
     def _notify_update(self) -> None:
-        """Notify all registered callbacks of an update."""
-        for update_callback in self._update_callbacks:
+        """Notify all registered callbacks of an update (thread-safe)."""
+        # Copy the list under lock to prevent modification during iteration
+        with self._callback_lock:
+            callbacks = list(self._update_callbacks)
+
+        for update_callback in callbacks:
             try:
                 # Use call_soon_threadsafe to ensure thread safety when scheduling callbacks
                 # This is necessary because _notify_update can be called from timer callbacks
-                if asyncio.iscoroutinefunction(update_callback):
-                    # For async callbacks, wrap the task creation in call_soon_threadsafe
-                    self.hass.loop.call_soon_threadsafe(
-                        lambda cb=update_callback: self.hass.async_create_task(cb())
-                    )
-                else:
-                    # For sync callbacks like async_write_ha_state
-                    self.hass.loop.call_soon_threadsafe(update_callback)
+                self.hass.loop.call_soon_threadsafe(update_callback)
             except Exception:
                 _LOGGER.exception("Error in update callback")
 
     def _notify_entity_adders(self, alarm_id: str) -> None:
-        """Notify all entity adder callbacks of a new alarm."""
+        """Notify all entity adder callbacks of a new alarm (thread-safe)."""
         # Verify alarm exists before notifying (defensive check)
         if alarm_id not in self._alarms:
             _LOGGER.warning("Skipping entity adder notification - alarm %s not found", alarm_id)
             return
 
-        # Use a copy of the list to avoid issues if callbacks modify the list
-        callbacks = list(self._entity_adder_callbacks)
+        # Copy the list under lock to prevent modification during iteration
+        with self._callback_lock:
+            callbacks = list(self._entity_adder_callbacks)
+
         for adder_callback in callbacks:
             try:
                 # Double-check alarm still exists before each callback
@@ -1598,8 +1607,6 @@ class AlarmClockCoordinator:
                     ]
                     if coordinators and coordinators[0] != self.entry.entry_id:
                         return
-
-                import uuid
 
                 alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
                 alarm_data = AlarmData(
