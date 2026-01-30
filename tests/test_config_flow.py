@@ -165,9 +165,3 @@ class TestErrorHandling:
         # Test will be implemented when services are properly mocked
         pass
 
-
-@pytest.fixture
-def hass():
-    """Home Assistant fixture."""
-    # This is a placeholder - real fixture comes from pytest-homeassistant
-    return MagicMock(spec=HomeAssistant)

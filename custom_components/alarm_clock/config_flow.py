@@ -648,10 +648,21 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Handle device-level default scripts configuration."""
         if user_input is not None:
+            # Build updated options, removing cleared default script fields
+            # When a field is cleared, it won't be in user_input, so we need to
+            # explicitly remove it from the saved options
+            updated_options = {
+                k: v
+                for k, v in self.config_entry.options.items()
+                if not k.startswith("default_script_")
+            }
+            # Add the new values from user_input
+            updated_options.update(user_input)
+            
             # Save to config entry options
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
-                options={**self.config_entry.options, **user_input},
+                options=updated_options,
             )
             return self.async_create_entry(title="", data={})
 
