@@ -263,7 +263,12 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
         """Manage the options."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_alarm", "manage_alarms", "default_scripts", "global_settings"],
+            menu_options=[
+                "add_alarm",
+                "manage_alarms",
+                "default_scripts",
+                "global_settings",
+            ],
         )
 
     async def async_step_add_alarm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -283,7 +288,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 validate_time_format(user_input[CONF_ALARM_TIME])
             except ValidationError as err:
                 _LOGGER.debug(
-                    "Time validation failed: %s (value: %s)", err, user_input.get(CONF_ALARM_TIME)
+                    "Time validation failed: %s (value: %s)",
+                    err,
+                    user_input.get(CONF_ALARM_TIME),
                 )
                 errors[CONF_ALARM_TIME] = "invalid_time"
 
@@ -829,7 +836,8 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_MISSED_ALARM_GRACE_PERIOD,
                         default=current_settings.get(
-                            CONF_MISSED_ALARM_GRACE_PERIOD, DEFAULT_MISSED_ALARM_GRACE_PERIOD
+                            CONF_MISSED_ALARM_GRACE_PERIOD,
+                            DEFAULT_MISSED_ALARM_GRACE_PERIOD,
                         ),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
