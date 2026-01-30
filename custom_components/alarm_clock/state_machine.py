@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.util import dt as dt_util
+
 from .const import (
     ATTR_ALARM_ID,
     ATTR_ALARM_NAME,
@@ -281,13 +283,13 @@ class AlarmStateMachine:
 
             # Update state
             self._runtime.state = target_state
-            self._runtime.last_state_change = datetime.now()
+            self._runtime.last_state_change = dt_util.now()
 
             # Handle state-specific logic
             if target_state == AlarmState.RINGING:
                 self._runtime.current_trigger_type = trigger_type
-                self._runtime.last_triggered = datetime.now()
-                self._runtime.ringing_start_time = datetime.now()
+                self._runtime.last_triggered = dt_util.now()
+                self._runtime.ringing_start_time = dt_util.now()
             elif target_state == AlarmState.SNOOZED:
                 self._runtime.snooze_count += 1
             elif target_state in (
@@ -302,7 +304,7 @@ class AlarmStateMachine:
                 self._runtime.snooze_end_time = None
                 self._runtime.pre_alarm_start_time = None
             elif target_state == AlarmState.PRE_ALARM:
-                self._runtime.pre_alarm_start_time = datetime.now()
+                self._runtime.pre_alarm_start_time = dt_util.now()
 
             _LOGGER.debug(
                 "Alarm %s transitioned: %s -> %s",
@@ -396,8 +398,6 @@ class AlarmStateMachine:
                     dt = datetime.fromisoformat(data["last_triggered"])
                     # Ensure timezone-aware datetime
                     if dt.tzinfo is None:
-                        import homeassistant.util.dt as dt_util
-
                         dt = dt_util.as_local(dt)
                     self._runtime.last_triggered = dt
                 except (ValueError, TypeError) as err:
@@ -412,8 +412,6 @@ class AlarmStateMachine:
                     dt = datetime.fromisoformat(data["snooze_end_time"])
                     # Ensure timezone-aware datetime
                     if dt.tzinfo is None:
-                        import homeassistant.util.dt as dt_util
-
                         dt = dt_util.as_local(dt)
                     self._runtime.snooze_end_time = dt
                 except (ValueError, TypeError) as err:
@@ -428,8 +426,6 @@ class AlarmStateMachine:
                     dt = datetime.fromisoformat(data["next_trigger"])
                     # Ensure timezone-aware datetime
                     if dt.tzinfo is None:
-                        import homeassistant.util.dt as dt_util
-
                         dt = dt_util.as_local(dt)
                     self._runtime.next_trigger = dt
                 except (ValueError, TypeError) as err:
