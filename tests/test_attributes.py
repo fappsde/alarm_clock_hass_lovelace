@@ -19,8 +19,6 @@ class TestScriptAttributes:
         self, hass: HomeAssistant, mock_store
     ):
         """Test getting script info when using device defaults."""
-        from pytest_homeassistant_custom_component.common import MockConfigEntry
-
         # Create config entry with options
         config_entry = MockConfigEntry(
             version=1,
