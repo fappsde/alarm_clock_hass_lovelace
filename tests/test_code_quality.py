@@ -582,6 +582,78 @@ def test_store_load_exception_handling():
     return errors
 
 
+def test_timezone_aware_datetime():
+    """Test that state_machine.py uses dt_util.now() instead of datetime.now()."""
+    errors = []
+    state_machine_file = (
+        Path(__file__).parent.parent
+        / "custom_components"
+        / "alarm_clock"
+        / "state_machine.py"
+    )
+
+    if not state_machine_file.exists():
+        return ["state_machine.py not found"]
+
+    content = state_machine_file.read_text()
+
+    # Check that datetime.now() is not used (should use dt_util.now() for timezone awareness)
+    datetime_now_pattern = r"datetime\.now\(\)"
+    matches = list(re.finditer(datetime_now_pattern, content))
+    for match in matches:
+        line_num = content[: match.start()].count("\n") + 1
+        errors.append(
+            f"state_machine.py:{line_num}: Use dt_util.now() instead of datetime.now() for timezone awareness"
+        )
+
+    # Check that dt_util is imported at module level
+    if "from homeassistant.util import dt as dt_util" not in content:
+        errors.append(
+            "state_machine.py: Missing module-level import 'from homeassistant.util import dt as dt_util'"
+        )
+
+    return errors
+
+
+def test_variable_scope_in_exception_handling():
+    """Test that variables used after try blocks are defined before them."""
+    errors = []
+    coordinator_file = (
+        Path(__file__).parent.parent
+        / "custom_components"
+        / "alarm_clock"
+        / "coordinator.py"
+    )
+
+    if not coordinator_file.exists():
+        return ["coordinator.py not found"]
+
+    content = coordinator_file.read_text()
+
+    # Check async_remove_alarm: entities_removed_count should be defined before try block
+    remove_alarm_pattern = r"async def async_remove_alarm\(self.*?(?=\n    async def |\n    def |\nclass |\Z)"
+    match = re.search(remove_alarm_pattern, content, re.DOTALL)
+    if match:
+        method_content = match.group()
+
+        # Check that entities_removed_count is initialized before try block
+        if "entities_removed_count" in method_content:
+            # Find first occurrence of entities_removed_count
+            first_use = method_content.find("entities_removed_count")
+            try_pos = method_content.find("try:")
+
+            if try_pos != -1 and first_use > try_pos:
+                # Check if it's an assignment before try
+                pre_try = method_content[:try_pos]
+                if "entities_removed_count" not in pre_try:
+                    line_num = content[: match.start()].count("\n") + 1
+                    errors.append(
+                        f"coordinator.py: async_remove_alarm should initialize entities_removed_count before try block"
+                    )
+
+    return errors
+
+
 def main():
     """Run all code quality tests."""
     print("=" * 70)
@@ -606,6 +678,8 @@ def main():
         ("Service definitions", test_service_definitions),
         ("Config flow exceptions", test_config_flow_exception_handling),
         ("Store load exceptions", test_store_load_exception_handling),
+        ("Timezone aware datetime", test_timezone_aware_datetime),
+        ("Variable scope in exceptions", test_variable_scope_in_exception_handling),
     ]
 
     for test_name, test_func in tests:
@@ -641,6 +715,8 @@ def main():
         print("  ✓ Service definitions valid")
         print("  ✓ Config flow has exception handling")
         print("  ✓ Store loading has exception handling")
+        print("  ✓ Timezone-aware datetime usage")
+        print("  ✓ Variable scope in exception handling")
         print()
         print("This integration should not interfere with other HACS integrations.")
         return 0
