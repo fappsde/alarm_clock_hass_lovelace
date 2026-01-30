@@ -337,6 +337,8 @@ class AlarmClockCoordinator:
         if alarm_id not in self._alarms:
             return False
 
+        entities_removed_count = 0
+
         try:
             # Cancel all callbacks
             self._cancel_scheduled_callback(alarm_id)
@@ -369,6 +371,8 @@ class AlarmClockCoordinator:
                 for entity_id in entities_to_remove:
                     _LOGGER.debug("Removing entity %s for alarm %s", entity_id, alarm_id)
                     entity_registry.async_remove(entity_id)
+
+                entities_removed_count = len(entities_to_remove)
             except Exception as entity_err:
                 _LOGGER.warning("Error removing entities for alarm %s: %s", alarm_id, entity_err)
 
@@ -377,7 +381,7 @@ class AlarmClockCoordinator:
 
             self._notify_update()
             _LOGGER.info(
-                "Removed alarm %s and %d associated entities", alarm_id, len(entities_to_remove)
+                "Removed alarm %s and %d associated entities", alarm_id, entities_removed_count
             )
             return True
         except Exception as err:
