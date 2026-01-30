@@ -316,6 +316,35 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            # Check if use_device_defaults toggle was changed
+            current_use_defaults = user_input.get(CONF_USE_DEVICE_DEFAULTS, True)
+            previous_use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
+
+            if current_use_defaults != previous_use_defaults:
+                # Toggle changed - update stored data and re-show form with new schema
+                self._alarm_data[CONF_USE_DEVICE_DEFAULTS] = current_use_defaults
+                # Preserve other fields that were filled in
+                for key in [
+                    CONF_SNOOZE_DURATION,
+                    CONF_MAX_SNOOZE_COUNT,
+                    CONF_AUTO_DISMISS_TIMEOUT,
+                    CONF_PRE_ALARM_DURATION,
+                    CONF_SCRIPT_TIMEOUT,
+                    CONF_SCRIPT_RETRY_COUNT,
+                ]:
+                    if key in user_input:
+                        self._alarm_data[key] = user_input[key]
+
+                alarm_name = self._alarm_data.get(CONF_ALARM_NAME, "New Alarm")
+                return self.async_show_form(
+                    step_id="alarm_advanced",
+                    description_placeholders={
+                        "alarm_name": alarm_name,
+                        "info": "Configure advanced alarm settings. If 'Use Device Defaults' is enabled, the alarm will use the device-level default scripts configured in Settings → Default Scripts.",
+                    },
+                    data_schema=self._build_advanced_schema(current_use_defaults),
+                )
+
             # Validate numeric fields
             numeric_validations = {
                 CONF_SNOOZE_DURATION: (1, 60),
@@ -369,6 +398,33 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     time_parts = str(time_value).split(":")
                     time_str = f"{int(time_parts[0]):02d}:{int(time_parts[1]):02d}"
 
+                # Determine if using device defaults
+                use_device_defaults = alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
+
+                # If using device defaults, don't set individual scripts
+                # The coordinator will use device-level defaults instead
+                if use_device_defaults:
+                    script_pre_alarm = None
+                    script_alarm = None
+                    script_post_alarm = None
+                    script_on_snooze = None
+                    script_on_dismiss = None
+                    script_fallback = None
+                    script_timeout = DEFAULT_SCRIPT_TIMEOUT
+                    script_retry_count = DEFAULT_SCRIPT_RETRY_COUNT
+                else:
+                    # Use alarm-specific scripts from form
+                    script_pre_alarm = alarm_data.get(CONF_SCRIPT_PRE_ALARM)
+                    script_alarm = alarm_data.get(CONF_SCRIPT_ALARM)
+                    script_post_alarm = alarm_data.get(CONF_SCRIPT_POST_ALARM)
+                    script_on_snooze = alarm_data.get(CONF_SCRIPT_ON_SNOOZE)
+                    script_on_dismiss = alarm_data.get(CONF_SCRIPT_ON_DISMISS)
+                    script_fallback = alarm_data.get(CONF_SCRIPT_FALLBACK)
+                    script_timeout = alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT)
+                    script_retry_count = alarm_data.get(
+                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+                    )
+
                 new_alarm = AlarmData(
                     alarm_id=alarm_id,
                     name=alarm_data[CONF_ALARM_NAME],
@@ -386,17 +442,15 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     pre_alarm_duration=alarm_data.get(
                         CONF_PRE_ALARM_DURATION, DEFAULT_PRE_ALARM_DURATION
                     ),
-                    use_device_defaults=alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True),
-                    script_pre_alarm=alarm_data.get(CONF_SCRIPT_PRE_ALARM),
-                    script_alarm=alarm_data.get(CONF_SCRIPT_ALARM),
-                    script_post_alarm=alarm_data.get(CONF_SCRIPT_POST_ALARM),
-                    script_on_snooze=alarm_data.get(CONF_SCRIPT_ON_SNOOZE),
-                    script_on_dismiss=alarm_data.get(CONF_SCRIPT_ON_DISMISS),
-                    script_fallback=alarm_data.get(CONF_SCRIPT_FALLBACK),
-                    script_timeout=alarm_data.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT),
-                    script_retry_count=alarm_data.get(
-                        CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
-                    ),
+                    use_device_defaults=use_device_defaults,
+                    script_pre_alarm=script_pre_alarm,
+                    script_alarm=script_alarm,
+                    script_post_alarm=script_post_alarm,
+                    script_on_snooze=script_on_snooze,
+                    script_on_dismiss=script_on_dismiss,
+                    script_fallback=script_fallback,
+                    script_timeout=script_timeout,
+                    script_retry_count=script_retry_count,
                 )
                 try:
                     await coordinator.async_add_alarm(new_alarm)
