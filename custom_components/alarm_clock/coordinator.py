@@ -1300,18 +1300,39 @@ class AlarmClockCoordinator:
         """Notify all registered callbacks of an update."""
         for update_callback in self._update_callbacks:
             try:
-                # Use call_soon_threadsafe to ensure callbacks are executed in the event loop
-                self.hass.loop.call_soon_threadsafe(update_callback)
+                # Schedule the callback on the event loop properly
+                # async_write_ha_state is an async method, so we need to create a task
+                if asyncio.iscoroutinefunction(update_callback):
+                    self.hass.async_create_task(update_callback())
+                else:
+                    # For sync callbacks like async_write_ha_state (which is actually sync
+                    # and schedules internally), we can call directly or use call_soon
+                    self.hass.loop.call_soon(update_callback)
             except Exception:
                 _LOGGER.exception("Error in update callback")
 
     def _notify_entity_adders(self, alarm_id: str) -> None:
         """Notify all entity adder callbacks of a new alarm."""
-        for adder_callback in self._entity_adder_callbacks:
+        # Verify alarm exists before notifying (defensive check)
+        if alarm_id not in self._alarms:
+            _LOGGER.warning(
+                "Skipping entity adder notification - alarm %s not found", alarm_id
+            )
+            return
+
+        # Use a copy of the list to avoid issues if callbacks modify the list
+        callbacks = list(self._entity_adder_callbacks)
+        for adder_callback in callbacks:
             try:
+                # Double-check alarm still exists before each callback
+                if alarm_id not in self._alarms:
+                    _LOGGER.warning(
+                        "Alarm %s was removed during entity creation, stopping", alarm_id
+                    )
+                    break
                 adder_callback(alarm_id)
             except Exception:
-                _LOGGER.exception("Error in entity adder callback")
+                _LOGGER.exception("Error in entity adder callback for alarm %s", alarm_id)
 
     async def async_register_services(self) -> None:
         """Register services."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
 
     from .coordinator import AlarmClockCoordinator
     from .state_machine import AlarmStateMachine
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class AlarmClockEntity(RestoreEntity):
@@ -32,7 +35,8 @@ class AlarmClockEntity(RestoreEntity):
         """Initialize the entity."""
         self.coordinator = coordinator
         self.entry = entry
-        self.alarm = alarm
+        self._alarm = alarm
+        self._alarm_id = alarm.data.alarm_id  # Cache the ID for safety
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title or "Alarm Clock",
@@ -42,14 +46,23 @@ class AlarmClockEntity(RestoreEntity):
         )
 
     @property
+    def alarm(self) -> AlarmStateMachine | None:
+        """Return the alarm state machine, or None if no longer available."""
+        # Prefer the live version from coordinator if available
+        if self._alarm_id in self.coordinator.alarms:
+            return self.coordinator.alarms[self._alarm_id]
+        # Fall back to cached reference (may be stale but prevents crashes)
+        return self._alarm
+
+    @property
     def alarm_id(self) -> str:
         """Return the alarm ID."""
-        return self.alarm.data.alarm_id
+        return self._alarm_id
 
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self.alarm_id in self.coordinator.alarms
+        return self._alarm_id in self.coordinator.alarms
 
     async def async_added_to_hass(self) -> None:
         """Handle entity added to Home Assistant."""
