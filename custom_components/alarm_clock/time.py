@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import time as dt_time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.time import TimeEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -81,6 +81,35 @@ class AlarmTimeEntity(AlarmClockEntity, TimeEntity):
         except (ValueError, AttributeError, IndexError):
             pass
         return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes including script information."""
+        alarm = self.alarm
+        if alarm is None:
+            return {}
+
+        # Get script information from coordinator
+        scripts_info = self.coordinator.get_alarm_scripts_info(alarm)
+
+        return {
+            "alarm_id": alarm.data.alarm_id,
+            "alarm_name": alarm.data.name,
+            "days": alarm.data.days,
+            "one_time": alarm.data.one_time,
+            "use_device_defaults": scripts_info["use_device_defaults"],
+            "script_pre_alarm": scripts_info["script_pre_alarm"],
+            "script_alarm": scripts_info["script_alarm"],
+            "script_post_alarm": scripts_info["script_post_alarm"],
+            "script_on_snooze": scripts_info["script_on_snooze"],
+            "script_on_dismiss": scripts_info["script_on_dismiss"],
+            "script_on_arm": scripts_info["script_on_arm"],
+            "script_on_cancel": scripts_info["script_on_cancel"],
+            "script_on_skip": scripts_info["script_on_skip"],
+            "script_fallback": scripts_info["script_fallback"],
+            "script_timeout": scripts_info["script_timeout"],
+            "script_retry_count": scripts_info["script_retry_count"],
+        }
 
     async def async_set_value(self, value: dt_time) -> None:
         """Set the alarm time."""
