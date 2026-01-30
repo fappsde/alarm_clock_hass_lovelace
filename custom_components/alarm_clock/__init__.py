@@ -53,19 +53,27 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Alarm Clock component."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Register the static path for the card JavaScript file
-    # Use new API (HA 2024.6+) or fall back to old API
-    if HAS_STATIC_PATH_CONFIG:
-        await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
-        )
-    else:
-        # Fallback for older Home Assistant versions
-        hass.http.register_static_path(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)
-    _LOGGER.debug("Registered static path for alarm clock card: %s", CARD_JS_URL)
+    try:
+        # Register the static path for the card JavaScript file
+        # Use new API (HA 2024.6+) or fall back to old API
+        if HAS_STATIC_PATH_CONFIG:
+            await hass.http.async_register_static_paths(
+                [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
+            )
+        else:
+            # Fallback for older Home Assistant versions
+            hass.http.register_static_path(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)
+        _LOGGER.debug("Registered static path for alarm clock card: %s", CARD_JS_URL)
+    except Exception as err:
+        _LOGGER.warning("Could not register static path for card: %s", err)
+        # Don't fail setup - the card just won't be available
 
-    # Register the Lovelace resource
-    await _async_register_lovelace_resource(hass)
+    try:
+        # Register the Lovelace resource (non-blocking, failures logged but don't stop setup)
+        await _async_register_lovelace_resource(hass)
+    except Exception as err:
+        _LOGGER.warning("Could not register Lovelace resource: %s", err)
+        # Don't fail setup - user can add resource manually
 
     return True
 
@@ -181,11 +189,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         # Initialize store for persistent data
         store = AlarmClockStore(hass, entry)
-        await store.async_load()
+        try:
+            await store.async_load()
+        except Exception as store_err:
+            _LOGGER.error(
+                "Error loading alarm clock storage, starting with empty state: %s",
+                store_err,
+                exc_info=True,
+            )
+            # Continue with empty store - alarms will need to be recreated
 
         # Clean up orphan entities before creating new ones
-        valid_alarm_ids = {alarm.alarm_id for alarm in store.get_all_alarms()}
-        await _async_cleanup_orphan_entities(hass, entry, valid_alarm_ids)
+        try:
+            valid_alarm_ids = {alarm.alarm_id for alarm in store.get_all_alarms()}
+            await _async_cleanup_orphan_entities(hass, entry, valid_alarm_ids)
+        except Exception as cleanup_err:
+            _LOGGER.warning("Error cleaning up orphan entities: %s", cleanup_err)
 
         # Create coordinator
         coordinator = AlarmClockCoordinator(hass, entry, store)
@@ -247,23 +266,38 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Alarm Clock integration: %s", entry.entry_id)
 
+    unload_ok = True
+
     try:
-        coordinator: AlarmClockCoordinator = hass.data[DOMAIN].get(entry.entry_id)
+        coordinator: AlarmClockCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
 
         if coordinator is None:
-            _LOGGER.warning("Coordinator not found for entry %s, skipping unload", entry.entry_id)
-            return True
+            _LOGGER.warning(
+                "Coordinator not found for entry %s, skipping coordinator cleanup",
+                entry.entry_id,
+            )
+        else:
+            # Stop the coordinator first (this saves runtime states and unregisters services)
+            _LOGGER.debug("Stopping coordinator")
+            try:
+                await coordinator.async_stop()
+            except Exception as err:
+                _LOGGER.error("Error stopping coordinator: %s", err, exc_info=True)
+                # Continue with unload even if coordinator stop fails
 
-        # Unload platforms first
+        # Unload platforms (do this even if coordinator stop failed)
         _LOGGER.debug("Unloading platforms")
-        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        try:
+            unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        except Exception as err:
+            _LOGGER.error("Error unloading platforms: %s", err, exc_info=True)
+            unload_ok = False
 
-        # Stop the coordinator (this saves runtime states)
-        _LOGGER.debug("Stopping coordinator")
-        await coordinator.async_stop()
+        # Clean up from hass.data regardless of unload status
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN].pop(entry.entry_id, None)
 
         if unload_ok:
-            hass.data[DOMAIN].pop(entry.entry_id)
             _LOGGER.info("Alarm Clock integration unloaded successfully: %s", entry.entry_id)
         else:
             _LOGGER.warning("Failed to unload some platforms for entry: %s", entry.entry_id)
@@ -272,9 +306,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     except Exception as err:
         _LOGGER.error("Error unloading Alarm Clock integration: %s", err, exc_info=True)
-        # Try to clean up anyway
-        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
-            hass.data[DOMAIN].pop(entry.entry_id)
+        # Try to clean up anyway to prevent lingering state
+        try:
+            if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+                hass.data[DOMAIN].pop(entry.entry_id, None)
+        except Exception:
+            pass
         return False
 
 

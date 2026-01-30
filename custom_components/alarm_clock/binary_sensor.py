@@ -77,24 +77,33 @@ class AlarmRingingSensor(AlarmClockEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return true if alarm is ringing or snoozed."""
-        return self.alarm.state in (AlarmState.RINGING, AlarmState.SNOOZED)
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return alarm.state in (AlarmState.RINGING, AlarmState.SNOOZED)
 
     @property
     def icon(self) -> str:
         """Return icon based on state."""
-        if self.alarm.state == AlarmState.RINGING:
+        alarm = self.alarm
+        if alarm is None:
+            return "mdi:alarm-off"
+        if alarm.state == AlarmState.RINGING:
             return "mdi:alarm-light"
-        elif self.alarm.state == AlarmState.SNOOZED:
+        elif alarm.state == AlarmState.SNOOZED:
             return "mdi:alarm-snooze"
         return "mdi:alarm-off"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
+        alarm = self.alarm
+        if alarm is None:
+            return {}
         return {
-            "alarm_state": self.alarm.state.value,
-            "snooze_count": self.alarm.snooze_count,
-            "max_snooze_count": self.alarm.data.max_snooze_count,
+            "alarm_state": alarm.state.value,
+            "snooze_count": alarm.snooze_count,
+            "max_snooze_count": alarm.data.max_snooze_count,
         }
 
 
