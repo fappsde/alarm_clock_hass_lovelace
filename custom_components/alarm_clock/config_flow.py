@@ -323,7 +323,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             if current_use_defaults != previous_use_defaults:
                 # Toggle changed - update stored data and re-show form with new schema
                 self._alarm_data[CONF_USE_DEVICE_DEFAULTS] = current_use_defaults
-                # Preserve other fields that were filled in
+                # Preserve other fields that were filled in, including script selections
                 for key in [
                     CONF_SNOOZE_DURATION,
                     CONF_MAX_SNOOZE_COUNT,
@@ -331,6 +331,12 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     CONF_PRE_ALARM_DURATION,
                     CONF_SCRIPT_TIMEOUT,
                     CONF_SCRIPT_RETRY_COUNT,
+                    CONF_SCRIPT_PRE_ALARM,
+                    CONF_SCRIPT_ALARM,
+                    CONF_SCRIPT_POST_ALARM,
+                    CONF_SCRIPT_ON_SNOOZE,
+                    CONF_SCRIPT_ON_DISMISS,
+                    CONF_SCRIPT_FALLBACK,
                 ]:
                     if key in user_input:
                         self._alarm_data[key] = user_input[key]
@@ -369,8 +375,13 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 # Re-show form with errors
                 # Read use_defaults from user_input to reflect the current toggle state
                 use_defaults = user_input.get(CONF_USE_DEVICE_DEFAULTS, True)
+                alarm_name = self._alarm_data.get(CONF_ALARM_NAME, "New Alarm")
                 return self.async_show_form(
                     step_id="alarm_advanced",
+                    description_placeholders={
+                        "alarm_name": alarm_name,
+                        "info": "Configure advanced alarm settings. If 'Use Device Defaults' is enabled, the alarm will use the device-level default scripts configured in Settings → Default Scripts.",
+                    },
                     data_schema=self._build_advanced_schema(use_defaults),
                     errors=errors,
                 )
