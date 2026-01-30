@@ -151,11 +151,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             sw_version="1.0.0",
         )
 
-        # Setup platforms
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-        # Start the coordinator scheduler
+        # CRITICAL: Start the coordinator BEFORE setting up platforms
+        # This ensures alarms are loaded from storage before entities try to access them
         await coordinator.async_start()
+
+        # Setup platforms - entities can now access coordinator.alarms
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         # Validate referenced entities after startup
         await coordinator.async_validate_entities()
@@ -176,20 +177,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    _LOGGER.debug("Unloading Alarm Clock integration: %s", entry.entry_id)
+    _LOGGER.info("Unloading Alarm Clock integration: %s", entry.entry_id)
 
-    coordinator: AlarmClockCoordinator = hass.data[DOMAIN][entry.entry_id]
+    try:
+        coordinator: AlarmClockCoordinator = hass.data[DOMAIN].get(entry.entry_id)
 
-    # Stop the coordinator
-    await coordinator.async_stop()
+        if coordinator is None:
+            _LOGGER.warning("Coordinator not found for entry %s, skipping unload", entry.entry_id)
+            return True
 
-    # Unload platforms
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        # Unload platforms first
+        _LOGGER.debug("Unloading platforms")
+        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        # Stop the coordinator (this saves runtime states)
+        _LOGGER.debug("Stopping coordinator")
+        await coordinator.async_stop()
 
-    return unload_ok
+        if unload_ok:
+            hass.data[DOMAIN].pop(entry.entry_id)
+            _LOGGER.info("Alarm Clock integration unloaded successfully: %s", entry.entry_id)
+        else:
+            _LOGGER.warning("Failed to unload some platforms for entry: %s", entry.entry_id)
+
+        return unload_ok
+
+    except Exception as err:
+        _LOGGER.error("Error unloading Alarm Clock integration: %s", err, exc_info=True)
+        # Try to clean up anyway
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            hass.data[DOMAIN].pop(entry.entry_id)
+        return False
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:

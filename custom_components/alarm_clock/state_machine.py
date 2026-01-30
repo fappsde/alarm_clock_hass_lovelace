@@ -373,20 +373,59 @@ class AlarmStateMachine:
     def restore_from_data(self, data: dict[str, Any]) -> None:
         """Restore state from saved data."""
         try:
-            self._runtime.state = AlarmState(data.get("state", AlarmState.DISABLED.value))
+            # Restore state - ensure it's a valid state
+            state_value = data.get("state", AlarmState.DISABLED.value)
+            try:
+                self._runtime.state = AlarmState(state_value)
+            except ValueError:
+                _LOGGER.warning(
+                    "Invalid state value '%s' for alarm %s, defaulting to ARMED/DISABLED",
+                    state_value,
+                    self.data.alarm_id,
+                )
+                self._runtime.state = AlarmState.ARMED if self.data.enabled else AlarmState.DISABLED
+
             self._runtime.snooze_count = data.get("snooze_count", 0)
 
+            # Restore datetime fields with timezone awareness
             if data.get("last_triggered"):
-                self._runtime.last_triggered = datetime.fromisoformat(data["last_triggered"])
+                try:
+                    dt = datetime.fromisoformat(data["last_triggered"])
+                    # Ensure timezone-aware datetime
+                    if dt.tzinfo is None:
+                        import homeassistant.util.dt as dt_util
+
+                        dt = dt_util.as_local(dt)
+                    self._runtime.last_triggered = dt
+                except (ValueError, TypeError) as err:
+                    _LOGGER.warning(
+                        "Invalid last_triggered datetime for alarm %s: %s",
+                        self.data.alarm_id,
+                        err,
+                    )
 
             if data.get("snooze_end_time"):
-                self._runtime.snooze_end_time = datetime.fromisoformat(data["snooze_end_time"])
+                try:
+                    dt = datetime.fromisoformat(data["snooze_end_time"])
+                    # Ensure timezone-aware datetime
+                    if dt.tzinfo is None:
+                        import homeassistant.util.dt as dt_util
 
-        except (ValueError, KeyError) as err:
-            _LOGGER.warning(
-                "Failed to restore state for alarm %s: %s",
+                        dt = dt_util.as_local(dt)
+                    self._runtime.snooze_end_time = dt
+                except (ValueError, TypeError) as err:
+                    _LOGGER.warning(
+                        "Invalid snooze_end_time datetime for alarm %s: %s",
+                        self.data.alarm_id,
+                        err,
+                    )
+
+        except Exception as err:
+            _LOGGER.error(
+                "Unexpected error restoring state for alarm %s: %s",
                 self.data.alarm_id,
                 err,
+                exc_info=True,
             )
             # Reset to safe state
             self._runtime = AlarmRuntimeState()
