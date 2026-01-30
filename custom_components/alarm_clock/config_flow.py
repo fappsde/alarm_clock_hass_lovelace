@@ -606,7 +606,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             # Process entity selector fields - only add if they have a value
             for key in script_entity_keys:
                 value = user_input.get(key, "")
-                if value and value != "":
+                if value:
                     # Has a valid value, add it to options
                     new_options[key] = value
             
