@@ -1317,14 +1317,16 @@ class AlarmClockCoordinator:
         """Notify all registered callbacks of an update."""
         for update_callback in self._update_callbacks:
             try:
-                # Schedule the callback on the event loop properly
-                # async_write_ha_state is an async method, so we need to create a task
+                # Use call_soon_threadsafe to ensure thread safety when scheduling callbacks
+                # This is necessary because _notify_update can be called from timer callbacks
                 if asyncio.iscoroutinefunction(update_callback):
-                    self.hass.async_create_task(update_callback())
+                    # For async callbacks, wrap the task creation in call_soon_threadsafe
+                    self.hass.loop.call_soon_threadsafe(
+                        lambda cb=update_callback: self.hass.async_create_task(cb())
+                    )
                 else:
-                    # For sync callbacks like async_write_ha_state (which is actually sync
-                    # and schedules internally), we can call directly or use call_soon
-                    self.hass.loop.call_soon(update_callback)
+                    # For sync callbacks like async_write_ha_state
+                    self.hass.loop.call_soon_threadsafe(update_callback)
             except Exception:
                 _LOGGER.exception("Error in update callback")
 
