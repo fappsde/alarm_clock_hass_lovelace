@@ -24,6 +24,7 @@
         "menu_options": {
           "add_alarm": "Add New Alarm",
           "manage_alarms": "Manage Existing Alarms",
+          "default_scripts": "Configure Default Scripts",
           "global_settings": "Global Settings"
         }
       },
@@ -46,12 +47,15 @@
           "max_snooze_count": "Maximum Snoozes",
           "auto_dismiss_timeout": "Auto-dismiss Timeout (minutes)",
           "pre_alarm_duration": "Pre-alarm Duration (minutes)",
+          "use_device_defaults": "Use Device Defaults",
           "script_pre_alarm": "Pre-alarm Script",
           "script_alarm": "Alarm Script",
           "script_post_alarm": "Post-alarm Script",
           "script_on_snooze": "On Snooze Script",
           "script_on_dismiss": "On Dismiss Script",
-          "script_fallback": "Fallback Script"
+          "script_fallback": "Fallback Script",
+          "script_timeout": "Script Timeout (seconds)",
+          "script_retry_count": "Script Retry Count"
         }
       },
       "manage_alarms": {
@@ -81,6 +85,23 @@
           "pre_alarm_duration": "Pre-alarm Duration (minutes)"
         }
       },
+      "default_scripts": {
+        "title": "Default Scripts",
+        "description": "Configure default scripts that will be used by all alarms with 'Use Device Defaults' enabled.",
+        "data": {
+          "default_script_pre_alarm": "Pre-alarm Script",
+          "default_script_alarm": "Alarm Script",
+          "default_script_post_alarm": "Post-alarm Script",
+          "default_script_on_snooze": "On Snooze Script",
+          "default_script_on_dismiss": "On Dismiss Script",
+          "default_script_on_arm": "On Arm Script",
+          "default_script_on_cancel": "On Cancel Script",
+          "default_script_on_skip": "On Skip Script",
+          "default_script_fallback": "Fallback Script",
+          "default_script_timeout": "Script Timeout (seconds)",
+          "default_script_retry_count": "Script Retry Count"
+        }
+      },
       "global_settings": {
         "title": "Global Settings",
         "description": "Configure global alarm clock settings.",
@@ -92,7 +113,15 @@
     },
     "abort": {
       "no_alarms": "No alarms configured. Add an alarm first.",
-      "alarm_not_found": "Alarm not found."
+      "alarm_not_found": "Alarm not found.",
+      "add_alarm_failed": "Failed to add alarm.",
+      "remove_alarm_failed": "Failed to remove alarm.",
+      "update_alarm_failed": "Failed to update alarm."
+    },
+    "error": {
+      "invalid_name": "Invalid alarm name.",
+      "invalid_time": "Invalid time format. Use HH:MM.",
+      "invalid_value": "Invalid value."
     }
   },
   "entity": {

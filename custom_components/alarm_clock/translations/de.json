@@ -24,6 +24,7 @@
         "menu_options": {
           "add_alarm": "Neuen Alarm hinzufügen",
           "manage_alarms": "Bestehende Alarme verwalten",
+          "default_scripts": "Standard-Skripte konfigurieren",
           "global_settings": "Globale Einstellungen"
         }
       },
@@ -46,12 +47,15 @@
           "max_snooze_count": "Maximale Schlummeranzahl",
           "auto_dismiss_timeout": "Automatische Abschaltung (Minuten)",
           "pre_alarm_duration": "Voralarm-Dauer (Minuten)",
+          "use_device_defaults": "Geräte-Standardwerte verwenden",
           "script_pre_alarm": "Voralarm-Skript",
           "script_alarm": "Alarm-Skript",
           "script_post_alarm": "Nach-Alarm-Skript",
           "script_on_snooze": "Schlummer-Skript",
           "script_on_dismiss": "Abschalt-Skript",
-          "script_fallback": "Fallback-Skript"
+          "script_fallback": "Fallback-Skript",
+          "script_timeout": "Skript-Timeout (Sekunden)",
+          "script_retry_count": "Skript-Wiederholungen"
         }
       },
       "manage_alarms": {
@@ -81,6 +85,23 @@
           "pre_alarm_duration": "Voralarm-Dauer (Minuten)"
         }
       },
+      "default_scripts": {
+        "title": "Standard-Skripte",
+        "description": "Konfigurieren Sie Standard-Skripte, die von allen Alarmen mit aktivierter Option 'Geräte-Standardwerte verwenden' genutzt werden.",
+        "data": {
+          "default_script_pre_alarm": "Voralarm-Skript",
+          "default_script_alarm": "Alarm-Skript",
+          "default_script_post_alarm": "Nach-Alarm-Skript",
+          "default_script_on_snooze": "Schlummer-Skript",
+          "default_script_on_dismiss": "Abschalt-Skript",
+          "default_script_on_arm": "Aktivierungs-Skript",
+          "default_script_on_cancel": "Abbruch-Skript",
+          "default_script_on_skip": "Überspringen-Skript",
+          "default_script_fallback": "Fallback-Skript",
+          "default_script_timeout": "Skript-Timeout (Sekunden)",
+          "default_script_retry_count": "Skript-Wiederholungen"
+        }
+      },
       "global_settings": {
         "title": "Globale Einstellungen",
         "description": "Konfigurieren Sie globale Wecker-Einstellungen.",
@@ -92,7 +113,15 @@
     },
     "abort": {
       "no_alarms": "Keine Alarme konfiguriert. Fügen Sie zuerst einen Alarm hinzu.",
-      "alarm_not_found": "Alarm nicht gefunden."
+      "alarm_not_found": "Alarm nicht gefunden.",
+      "add_alarm_failed": "Fehler beim Hinzufügen des Alarms.",
+      "remove_alarm_failed": "Fehler beim Löschen des Alarms.",
+      "update_alarm_failed": "Fehler beim Aktualisieren des Alarms."
+    },
+    "error": {
+      "invalid_name": "Ungültiger Alarmname.",
+      "invalid_time": "Ungültiges Zeitformat. Verwenden Sie HH:MM.",
+      "invalid_value": "Ungültiger Wert."
     }
   },
   "entity": {
