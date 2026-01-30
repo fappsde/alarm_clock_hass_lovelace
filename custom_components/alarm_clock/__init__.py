@@ -189,11 +189,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         # Initialize store for persistent data
         store = AlarmClockStore(hass, entry)
-        await store.async_load()
+        try:
+            await store.async_load()
+        except Exception as store_err:
+            _LOGGER.error(
+                "Error loading alarm clock storage, starting with empty state: %s",
+                store_err,
+                exc_info=True,
+            )
+            # Continue with empty store - alarms will need to be recreated
 
         # Clean up orphan entities before creating new ones
-        valid_alarm_ids = {alarm.alarm_id for alarm in store.get_all_alarms()}
-        await _async_cleanup_orphan_entities(hass, entry, valid_alarm_ids)
+        try:
+            valid_alarm_ids = {alarm.alarm_id for alarm in store.get_all_alarms()}
+            await _async_cleanup_orphan_entities(hass, entry, valid_alarm_ids)
+        except Exception as cleanup_err:
+            _LOGGER.warning("Error cleaning up orphan entities: %s", cleanup_err)
 
         # Create coordinator
         coordinator = AlarmClockCoordinator(hass, entry, store)

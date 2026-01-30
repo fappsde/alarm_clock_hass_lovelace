@@ -282,11 +282,15 @@ class AlarmClockCoordinator:
 
     async def async_add_alarm(self, alarm_data: AlarmData) -> None:
         """Add a new alarm."""
-        await self.store.async_add_alarm(alarm_data)
-        await self._async_setup_alarm(alarm_data)
-        self._notify_entity_adders(alarm_data.alarm_id)
-        self._notify_update()
-        _LOGGER.info("Added new alarm: %s", alarm_data.alarm_id)
+        try:
+            await self.store.async_add_alarm(alarm_data)
+            await self._async_setup_alarm(alarm_data)
+            self._notify_entity_adders(alarm_data.alarm_id)
+            self._notify_update()
+            _LOGGER.info("Added new alarm: %s", alarm_data.alarm_id)
+        except Exception as err:
+            _LOGGER.error("Error adding alarm %s: %s", alarm_data.alarm_id, err, exc_info=True)
+            raise
 
     async def async_update_alarm(self, alarm_data: AlarmData) -> None:
         """Update an existing alarm."""
@@ -296,72 +300,85 @@ class AlarmClockCoordinator:
             _LOGGER.warning("Attempted to update non-existent alarm: %s", alarm_id)
             return
 
-        old_alarm = self._alarms[alarm_id]
-        old_state = old_alarm.state
+        try:
+            old_alarm = self._alarms[alarm_id]
+            old_state = old_alarm.state
 
-        # Cancel existing schedules
-        self._cancel_scheduled_callback(alarm_id)
+            # Cancel existing schedules
+            self._cancel_scheduled_callback(alarm_id)
 
-        # Update store
-        await self.store.async_update_alarm(alarm_data)
+            # Update store
+            await self.store.async_update_alarm(alarm_data)
 
-        # Update state machine
-        old_alarm.data = alarm_data
+            # Update state machine
+            old_alarm.data = alarm_data
 
-        # Re-schedule if needed
-        if alarm_data.enabled and old_state in (AlarmState.ARMED, AlarmState.DISABLED):
-            await old_alarm.transition_to(AlarmState.ARMED)
-            await self._schedule_alarm(alarm_id)
-        elif not alarm_data.enabled:
-            await old_alarm.transition_to(AlarmState.DISABLED)
+            # Re-schedule if needed
+            if alarm_data.enabled and old_state in (AlarmState.ARMED, AlarmState.DISABLED):
+                await old_alarm.transition_to(AlarmState.ARMED)
+                await self._schedule_alarm(alarm_id)
+            elif not alarm_data.enabled:
+                await old_alarm.transition_to(AlarmState.DISABLED)
 
-        self._notify_update()
-        _LOGGER.debug("Updated alarm: %s", alarm_id)
+            self._notify_update()
+            _LOGGER.debug("Updated alarm: %s", alarm_id)
+        except Exception as err:
+            _LOGGER.error("Error updating alarm %s: %s", alarm_id, err, exc_info=True)
+            raise
 
     async def async_remove_alarm(self, alarm_id: str) -> bool:
         """Remove an alarm."""
         if alarm_id not in self._alarms:
             return False
 
-        # Cancel all callbacks
-        self._cancel_scheduled_callback(alarm_id)
-        self._cancel_snooze_callback(alarm_id)
-        self._cancel_auto_dismiss_callback(alarm_id)
-        self._cancel_pre_alarm_callback(alarm_id)
+        try:
+            # Cancel all callbacks
+            self._cancel_scheduled_callback(alarm_id)
+            self._cancel_snooze_callback(alarm_id)
+            self._cancel_auto_dismiss_callback(alarm_id)
+            self._cancel_pre_alarm_callback(alarm_id)
 
-        # Clean up tracking dicts to prevent memory leaks
-        self._last_trigger_times.pop(alarm_id, None)
+            # Clean up tracking dicts to prevent memory leaks
+            self._last_trigger_times.pop(alarm_id, None)
 
-        # Cancel and remove any script watchdog tasks
-        if alarm_id in self._script_watchdog_tasks:
-            self._script_watchdog_tasks[alarm_id].cancel()
-            del self._script_watchdog_tasks[alarm_id]
+            # Cancel and remove any script watchdog tasks
+            if alarm_id in self._script_watchdog_tasks:
+                self._script_watchdog_tasks[alarm_id].cancel()
+                del self._script_watchdog_tasks[alarm_id]
 
-        # Remove from store
-        await self.store.async_remove_alarm(alarm_id)
+            # Remove from store
+            await self.store.async_remove_alarm(alarm_id)
 
-        # Remove associated entities from entity registry
-        entity_registry = er.async_get(self.hass)
-        entities_to_remove = []
+            # Remove associated entities from entity registry
+            try:
+                entity_registry = er.async_get(self.hass)
+                entities_to_remove = []
 
-        # Find all entities with this alarm_id in their unique_id
-        for entity_id, entity_entry in entity_registry.entities.items():
-            if entity_entry.unique_id and alarm_id in entity_entry.unique_id:
-                entities_to_remove.append(entity_id)
+                # Find all entities with this alarm_id in their unique_id
+                for entity_id, entity_entry in entity_registry.entities.items():
+                    if entity_entry.unique_id and alarm_id in entity_entry.unique_id:
+                        entities_to_remove.append(entity_id)
 
-        # Remove found entities
-        for entity_id in entities_to_remove:
-            _LOGGER.debug("Removing entity %s for alarm %s", entity_id, alarm_id)
-            entity_registry.async_remove(entity_id)
+                # Remove found entities
+                for entity_id in entities_to_remove:
+                    _LOGGER.debug("Removing entity %s for alarm %s", entity_id, alarm_id)
+                    entity_registry.async_remove(entity_id)
+            except Exception as entity_err:
+                _LOGGER.warning(
+                    "Error removing entities for alarm %s: %s", alarm_id, entity_err
+                )
 
-        # Remove from memory
-        del self._alarms[alarm_id]
+            # Remove from memory
+            del self._alarms[alarm_id]
 
-        self._notify_update()
-        _LOGGER.info(
-            "Removed alarm %s and %d associated entities", alarm_id, len(entities_to_remove)
-        )
-        return True
+            self._notify_update()
+            _LOGGER.info(
+                "Removed alarm %s and %d associated entities", alarm_id, len(entities_to_remove)
+            )
+            return True
+        except Exception as err:
+            _LOGGER.error("Error removing alarm %s: %s", alarm_id, err, exc_info=True)
+            return False
 
     async def _schedule_alarm(self, alarm_id: str) -> None:
         """Schedule the next trigger for an alarm.
@@ -1405,178 +1422,208 @@ class AlarmClockCoordinator:
 
         async def handle_snooze(call: ServiceCall) -> None:
             """Handle snooze service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            duration = call.data.get(ATTR_DURATION)
-            _LOGGER.debug("handle_snooze called: entity_id=%s, duration=%s", entity_id, duration)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_snooze", alarm_id)
-                await self.async_snooze(alarm_id, duration)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                duration = call.data.get(ATTR_DURATION)
+                _LOGGER.debug("handle_snooze called: entity_id=%s, duration=%s", entity_id, duration)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_snooze", alarm_id)
+                    await self.async_snooze(alarm_id, duration)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in snooze service: %s", err, exc_info=True)
 
         async def handle_dismiss(call: ServiceCall) -> None:
             """Handle dismiss service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            _LOGGER.debug("handle_dismiss called: entity_id=%s", entity_id)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_dismiss", alarm_id)
-                await self.async_dismiss(alarm_id)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                _LOGGER.debug("handle_dismiss called: entity_id=%s", entity_id)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_dismiss", alarm_id)
+                    await self.async_dismiss(alarm_id)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in dismiss service: %s", err, exc_info=True)
 
         async def handle_skip_next(call: ServiceCall) -> None:
             """Handle skip next service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            _LOGGER.debug("handle_skip_next called: entity_id=%s", entity_id)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_skip_next", alarm_id)
-                await self.async_skip_next(alarm_id)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                _LOGGER.debug("handle_skip_next called: entity_id=%s", entity_id)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_skip_next", alarm_id)
+                    await self.async_skip_next(alarm_id)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in skip_next service: %s", err, exc_info=True)
 
         async def handle_cancel_skip(call: ServiceCall) -> None:
             """Handle cancel skip service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            _LOGGER.debug("handle_cancel_skip called: entity_id=%s", entity_id)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_cancel_skip", alarm_id)
-                await self.async_cancel_skip(alarm_id)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                _LOGGER.debug("handle_cancel_skip called: entity_id=%s", entity_id)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_cancel_skip", alarm_id)
+                    await self.async_cancel_skip(alarm_id)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in cancel_skip service: %s", err, exc_info=True)
 
         async def handle_test_alarm(call: ServiceCall) -> None:
             """Handle test alarm service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            _LOGGER.debug("handle_test_alarm called: entity_id=%s", entity_id)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_test_alarm", alarm_id)
-                await self.async_test_alarm(alarm_id)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                _LOGGER.debug("handle_test_alarm called: entity_id=%s", entity_id)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_test_alarm", alarm_id)
+                    await self.async_test_alarm(alarm_id)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in test_alarm service: %s", err, exc_info=True)
 
         async def handle_set_time(call: ServiceCall) -> None:
             """Handle set time service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            time = call.data[ATTR_ALARM_TIME]
-            _LOGGER.debug("handle_set_time called: entity_id=%s, time=%s", entity_id, time)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_time", alarm_id)
-                await self.async_set_time(alarm_id, time)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                time = call.data[ATTR_ALARM_TIME]
+                _LOGGER.debug("handle_set_time called: entity_id=%s, time=%s", entity_id, time)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_time", alarm_id)
+                    await self.async_set_time(alarm_id, time)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in set_time service: %s", err, exc_info=True)
 
         async def handle_set_days(call: ServiceCall) -> None:
             """Handle set days service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            days = call.data[ATTR_DAYS]
-            _LOGGER.debug("handle_set_days called: entity_id=%s, days=%s", entity_id, days)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_days", alarm_id)
-                await self.async_set_days(alarm_id, days)
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                days = call.data[ATTR_DAYS]
+                _LOGGER.debug("handle_set_days called: entity_id=%s, days=%s", entity_id, days)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_days", alarm_id)
+                    await self.async_set_days(alarm_id, days)
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in set_days service: %s", err, exc_info=True)
 
         async def handle_set_scripts(call: ServiceCall) -> None:
             """Handle set scripts service call."""
-            entity_id = call.data[ATTR_ENTITY_ID]
-            _LOGGER.debug("handle_set_scripts called: entity_id=%s", entity_id)
-            alarm_id = self._entity_id_to_alarm_id(entity_id)
-            if alarm_id:
-                _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_scripts", alarm_id)
-                await self.async_set_scripts(
-                    alarm_id,
-                    script_pre_alarm=call.data.get(CONF_SCRIPT_PRE_ALARM),
-                    script_alarm=call.data.get(CONF_SCRIPT_ALARM),
-                    script_post_alarm=call.data.get(CONF_SCRIPT_POST_ALARM),
-                    script_on_snooze=call.data.get(CONF_SCRIPT_ON_SNOOZE),
-                    script_on_dismiss=call.data.get(CONF_SCRIPT_ON_DISMISS),
-                    script_on_arm=call.data.get(CONF_SCRIPT_ON_ARM),
-                    script_on_cancel=call.data.get(CONF_SCRIPT_ON_CANCEL),
-                    script_on_skip=call.data.get(CONF_SCRIPT_ON_SKIP),
-                    script_fallback=call.data.get(CONF_SCRIPT_FALLBACK),
-                    script_timeout=call.data.get(CONF_SCRIPT_TIMEOUT),
-                    script_retry_count=call.data.get(CONF_SCRIPT_RETRY_COUNT),
-                )
-            else:
-                _LOGGER.error(
-                    "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
-                    entity_id,
-                    list(self._alarms.keys()),
-                )
+            try:
+                entity_id = call.data[ATTR_ENTITY_ID]
+                _LOGGER.debug("handle_set_scripts called: entity_id=%s", entity_id)
+                alarm_id = self._entity_id_to_alarm_id(entity_id)
+                if alarm_id:
+                    _LOGGER.debug("Resolved to alarm_id=%s, calling async_set_scripts", alarm_id)
+                    await self.async_set_scripts(
+                        alarm_id,
+                        script_pre_alarm=call.data.get(CONF_SCRIPT_PRE_ALARM),
+                        script_alarm=call.data.get(CONF_SCRIPT_ALARM),
+                        script_post_alarm=call.data.get(CONF_SCRIPT_POST_ALARM),
+                        script_on_snooze=call.data.get(CONF_SCRIPT_ON_SNOOZE),
+                        script_on_dismiss=call.data.get(CONF_SCRIPT_ON_DISMISS),
+                        script_on_arm=call.data.get(CONF_SCRIPT_ON_ARM),
+                        script_on_cancel=call.data.get(CONF_SCRIPT_ON_CANCEL),
+                        script_on_skip=call.data.get(CONF_SCRIPT_ON_SKIP),
+                        script_fallback=call.data.get(CONF_SCRIPT_FALLBACK),
+                        script_timeout=call.data.get(CONF_SCRIPT_TIMEOUT),
+                        script_retry_count=call.data.get(CONF_SCRIPT_RETRY_COUNT),
+                    )
+                else:
+                    _LOGGER.error(
+                        "Failed to resolve entity_id %s to alarm_id. Available alarms: %s",
+                        entity_id,
+                        list(self._alarms.keys()),
+                    )
+            except Exception as err:
+                _LOGGER.error("Error in set_scripts service: %s", err, exc_info=True)
 
         async def handle_create_alarm(call: ServiceCall) -> None:
             """Handle create alarm service call."""
-            # Check if entry_id is provided and matches this coordinator
-            target_entry_id = call.data.get("entry_id")
-            if target_entry_id and target_entry_id != self.entry.entry_id:
-                # This call is not for this coordinator
-                return
-
-            # If no entry_id provided and there are multiple coordinators,
-            # only the first one will handle it (backward compatibility)
-            if not target_entry_id and len(self.hass.data[DOMAIN]) > 2:
-                # Check if this is the first coordinator (excluding _register_resource)
-                coordinators = [
-                    k for k in self.hass.data[DOMAIN].keys() if k != "_register_resource"
-                ]
-                if coordinators and coordinators[0] != self.entry.entry_id:
+            try:
+                # Check if entry_id is provided and matches this coordinator
+                target_entry_id = call.data.get("entry_id")
+                if target_entry_id and target_entry_id != self.entry.entry_id:
+                    # This call is not for this coordinator
                     return
 
-            import uuid
+                # If no entry_id provided and there are multiple coordinators,
+                # only the first one will handle it (backward compatibility)
+                if not target_entry_id and len(self.hass.data[DOMAIN]) > 2:
+                    # Check if this is the first coordinator (excluding _register_resource)
+                    coordinators = [
+                        k for k in self.hass.data[DOMAIN].keys() if k != "_register_resource"
+                    ]
+                    if coordinators and coordinators[0] != self.entry.entry_id:
+                        return
 
-            alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
-            alarm_data = AlarmData(
-                alarm_id=alarm_id,
-                name=call.data[CONF_ALARM_NAME],
-                time=call.data[CONF_ALARM_TIME],
-                days=call.data.get(CONF_DAYS, WEEKDAYS[:5]),
-                enabled=call.data.get(CONF_ENABLED, True),
-                one_time=call.data.get(CONF_ONE_TIME, False),
-                snooze_duration=call.data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
-                max_snooze_count=call.data.get(CONF_MAX_SNOOZE_COUNT, 3),
-                use_device_defaults=call.data.get(CONF_USE_DEVICE_DEFAULTS, True),
-            )
-            await self.async_add_alarm(alarm_data)
+                import uuid
+
+                alarm_id = f"alarm_{uuid.uuid4().hex[:8]}"
+                alarm_data = AlarmData(
+                    alarm_id=alarm_id,
+                    name=call.data[CONF_ALARM_NAME],
+                    time=call.data[CONF_ALARM_TIME],
+                    days=call.data.get(CONF_DAYS, WEEKDAYS[:5]),
+                    enabled=call.data.get(CONF_ENABLED, True),
+                    one_time=call.data.get(CONF_ONE_TIME, False),
+                    snooze_duration=call.data.get(CONF_SNOOZE_DURATION, DEFAULT_SNOOZE_DURATION),
+                    max_snooze_count=call.data.get(CONF_MAX_SNOOZE_COUNT, 3),
+                    use_device_defaults=call.data.get(CONF_USE_DEVICE_DEFAULTS, True),
+                )
+                await self.async_add_alarm(alarm_data)
+            except Exception as err:
+                _LOGGER.error("Error in create_alarm service: %s", err, exc_info=True)
 
         async def handle_delete_alarm(call: ServiceCall) -> None:
             """Handle delete alarm service call."""
-            alarm_id = call.data[CONF_ALARM_ID]
-            await self.async_remove_alarm(alarm_id)
+            try:
+                alarm_id = call.data[CONF_ALARM_ID]
+                await self.async_remove_alarm(alarm_id)
+            except Exception as err:
+                _LOGGER.error("Error in delete_alarm service: %s", err, exc_info=True)
 
         # Register services (only if not already registered)
         if not self.hass.services.has_service(DOMAIN, SERVICE_SNOOZE):

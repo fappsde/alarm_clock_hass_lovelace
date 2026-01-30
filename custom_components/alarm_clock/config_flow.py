@@ -397,7 +397,11 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                         CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
                     ),
                 )
-                await coordinator.async_add_alarm(new_alarm)
+                try:
+                    await coordinator.async_add_alarm(new_alarm)
+                except Exception as err:
+                    _LOGGER.error("Error adding alarm: %s", err, exc_info=True)
+                    return self.async_abort(reason="add_alarm_failed")
 
             # Clear the alarm data after successful submission
             self._alarm_data = {}
@@ -463,7 +467,11 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
             if action == "delete":
                 if coordinator:
-                    await coordinator.async_remove_alarm(alarm_id)
+                    try:
+                        await coordinator.async_remove_alarm(alarm_id)
+                    except Exception as err:
+                        _LOGGER.error("Error removing alarm: %s", err, exc_info=True)
+                        return self.async_abort(reason="remove_alarm_failed")
                 return self.async_create_entry(title="", data={})
             elif action == "edit":
                 self._alarm_data["alarm_id"] = alarm_id
@@ -556,7 +564,11 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 CONF_PRE_ALARM_DURATION, alarm.data.pre_alarm_duration
             )
 
-            await coordinator.async_update_alarm(alarm.data)
+            try:
+                await coordinator.async_update_alarm(alarm.data)
+            except Exception as err:
+                _LOGGER.error("Error updating alarm: %s", err, exc_info=True)
+                return self.async_abort(reason="update_alarm_failed")
             return self.async_create_entry(title="", data={})
 
         # Show form with current alarm data

@@ -83,11 +83,17 @@ class AlarmStateSensor(AlarmClockEntity, SensorEntity):
     @property
     def native_value(self) -> str:
         """Return the current state."""
-        return self.alarm.state.value
+        alarm = self.alarm
+        if alarm is None:
+            return AlarmState.DISABLED.value
+        return alarm.state.value
 
     @property
     def icon(self) -> str:
         """Return icon based on state."""
+        alarm = self.alarm
+        if alarm is None:
+            return "mdi:alarm-off"
         icons = {
             AlarmState.DISABLED: "mdi:alarm-off",
             AlarmState.ARMED: "mdi:alarm",
@@ -98,18 +104,21 @@ class AlarmStateSensor(AlarmClockEntity, SensorEntity):
             AlarmState.AUTO_DISMISSED: "mdi:alarm-check",
             AlarmState.MISSED: "mdi:alarm-multiple",
         }
-        return icons.get(self.alarm.state, "mdi:alarm")
+        return icons.get(alarm.state, "mdi:alarm")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
+        alarm = self.alarm
+        if alarm is None:
+            return {}
         return {
-            "alarm_id": self.alarm.data.alarm_id,
-            "alarm_time": self.alarm.data.time,
-            "enabled": self.alarm.data.enabled,
-            "trigger_type": self.alarm.current_trigger_type,
+            "alarm_id": alarm.data.alarm_id,
+            "alarm_time": alarm.data.time,
+            "enabled": alarm.data.enabled,
+            "trigger_type": alarm.current_trigger_type,
             "ringing_start_time": (
-                self.alarm.ringing_start_time.isoformat() if self.alarm.ringing_start_time else None
+                alarm.ringing_start_time.isoformat() if alarm.ringing_start_time else None
             ),
         }
 
@@ -129,20 +138,26 @@ class AlarmNextTriggerSensor(AlarmClockEntity, SensorEntity):
     @property
     def native_value(self) -> datetime | None:
         """Return the next trigger time."""
-        return self.alarm.next_trigger
+        alarm = self.alarm
+        if alarm is None:
+            return None
+        return alarm.next_trigger
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
+        alarm = self.alarm
+        if alarm is None:
+            return {}
         attrs: dict[str, Any] = {
-            "skip_next": self.alarm.data.skip_next,
+            "skip_next": alarm.data.skip_next,
         }
 
         # Calculate time until trigger
-        if self.alarm.next_trigger:
+        if alarm.next_trigger:
             now = dt_util.now()
-            if self.alarm.next_trigger > now:
-                delta = self.alarm.next_trigger - now
+            if alarm.next_trigger > now:
+                delta = alarm.next_trigger - now
                 total_minutes = int(delta.total_seconds() / 60)
                 hours, minutes = divmod(total_minutes, 60)
                 attrs["time_until"] = f"{hours}h {minutes}m"
@@ -165,17 +180,23 @@ class AlarmSnoozeCountSensor(AlarmClockEntity, SensorEntity):
     @property
     def native_value(self) -> int:
         """Return the current snooze count."""
-        return self.alarm.snooze_count
+        alarm = self.alarm
+        if alarm is None:
+            return 0
+        return alarm.snooze_count
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
+        alarm = self.alarm
+        if alarm is None:
+            return {}
         return {
-            "max_snooze_count": self.alarm.data.max_snooze_count,
-            "snoozes_remaining": max(0, self.alarm.data.max_snooze_count - self.alarm.snooze_count),
-            "snooze_duration": self.alarm.data.snooze_duration,
+            "max_snooze_count": alarm.data.max_snooze_count,
+            "snoozes_remaining": max(0, alarm.data.max_snooze_count - alarm.snooze_count),
+            "snooze_duration": alarm.data.snooze_duration,
             "snooze_end_time": (
-                self.alarm.snooze_end_time.isoformat() if self.alarm.snooze_end_time else None
+                alarm.snooze_end_time.isoformat() if alarm.snooze_end_time else None
             ),
         }
 

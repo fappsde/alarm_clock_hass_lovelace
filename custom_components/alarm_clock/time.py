@@ -71,8 +71,11 @@ class AlarmTimeEntity(AlarmClockEntity, TimeEntity):
     @property
     def native_value(self) -> dt_time | None:
         """Return the current alarm time."""
+        alarm = self.alarm
+        if alarm is None:
+            return None
         try:
-            parts = self.alarm.data.time.split(":")
+            parts = alarm.data.time.split(":")
             if len(parts) >= 2:
                 return dt_time(int(parts[0]), int(parts[1]))
         except (ValueError, AttributeError, IndexError):

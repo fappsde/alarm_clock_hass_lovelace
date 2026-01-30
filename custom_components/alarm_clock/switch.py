@@ -75,39 +75,48 @@ class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if alarm is enabled."""
-        return self.alarm.data.enabled
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return alarm.data.enabled
 
     @property
     def icon(self) -> str:
         """Return the icon based on state."""
-        if self.alarm.state == AlarmState.RINGING:
+        alarm = self.alarm
+        if alarm is None:
+            return "mdi:alarm-off"
+        if alarm.state == AlarmState.RINGING:
             return "mdi:alarm-light"
-        elif self.alarm.state == AlarmState.SNOOZED:
+        elif alarm.state == AlarmState.SNOOZED:
             return "mdi:alarm-snooze"
-        elif self.alarm.state == AlarmState.PRE_ALARM:
+        elif alarm.state == AlarmState.PRE_ALARM:
             return "mdi:alarm-note"
-        elif self.alarm.data.enabled:
+        elif alarm.data.enabled:
             return "mdi:alarm"
         return "mdi:alarm-off"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
+        alarm = self.alarm
+        if alarm is None:
+            return {"entry_id": self.entry.entry_id}
         return {
-            "alarm_id": self.alarm.data.alarm_id,
-            "alarm_name": self.alarm.data.name,
-            "alarm_time": self.alarm.data.time,
-            "alarm_state": self.alarm.state.value,
-            "days": self.alarm.data.days,
-            "one_time": self.alarm.data.one_time,
-            "skip_next": self.alarm.data.skip_next,
-            "snooze_count": self.alarm.snooze_count,
-            "max_snooze_count": self.alarm.data.max_snooze_count,
+            "alarm_id": alarm.data.alarm_id,
+            "alarm_name": alarm.data.name,
+            "alarm_time": alarm.data.time,
+            "alarm_state": alarm.state.value,
+            "days": alarm.data.days,
+            "one_time": alarm.data.one_time,
+            "skip_next": alarm.data.skip_next,
+            "snooze_count": alarm.snooze_count,
+            "max_snooze_count": alarm.data.max_snooze_count,
             "next_trigger": (
-                self.alarm.next_trigger.isoformat() if self.alarm.next_trigger else None
+                alarm.next_trigger.isoformat() if alarm.next_trigger else None
             ),
             "snooze_end_time": (
-                self.alarm.snooze_end_time.isoformat() if self.alarm.snooze_end_time else None
+                alarm.snooze_end_time.isoformat() if alarm.snooze_end_time else None
             ),
             "entry_id": self.entry.entry_id,
         }
@@ -136,13 +145,19 @@ class AlarmSkipNextSwitch(AlarmClockEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         """Return true if skip next is enabled."""
-        return self.alarm.data.skip_next
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return alarm.data.skip_next
 
     @property
     def available(self) -> bool:
         """Return if entity is available."""
         # Only available when alarm is enabled
-        return super().available and self.alarm.data.enabled
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return super().available and alarm.data.enabled
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable skip next."""
