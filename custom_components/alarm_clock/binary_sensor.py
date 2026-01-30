@@ -44,13 +44,23 @@ async def async_setup_entry(
     async_add_entities(entities)
 
     # Register callback for dynamically adding entities when new alarms are created
-    coordinator.register_entity_adder_callback(
-        lambda alarm_id: async_add_entities(
+    def add_alarm_entities(alarm_id: str) -> None:
+        """Add entities for a new alarm with safety check."""
+        # Safety check: ensure alarm still exists (prevents race condition)
+        if alarm_id not in coordinator.alarms:
+            _LOGGER.warning(
+                "Skipping entity creation for alarm %s - alarm no longer exists",
+                alarm_id,
+            )
+            return
+        alarm = coordinator.alarms[alarm_id]
+        async_add_entities(
             [
-                AlarmRingingSensor(coordinator, entry, coordinator.alarms[alarm_id]),
+                AlarmRingingSensor(coordinator, entry, alarm),
             ]
         )
-    )
+
+    coordinator.register_entity_adder_callback(add_alarm_entities)
 
 
 class AlarmRingingSensor(AlarmClockEntity, BinarySensorEntity):

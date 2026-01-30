@@ -113,6 +113,9 @@ class AlarmClockCoordinator:
         # Lock for thread-safe alarm scheduling
         self._schedule_lock = asyncio.Lock()
 
+        # Track if this coordinator registered the services
+        self._services_registered = False
+
     @property
     def alarms(self) -> dict[str, AlarmStateMachine]:
         """Get all alarms."""
@@ -195,6 +198,13 @@ class AlarmClockCoordinator:
         # Save runtime states
         for alarm_id, alarm in self._alarms.items():
             await self.store.async_save_runtime_state(alarm_id, alarm.to_restore_data())
+
+        # Unregister services if this is the last entry
+        await self.async_unregister_services()
+
+        # Clear update callbacks to prevent memory leaks
+        self._update_callbacks.clear()
+        self._entity_adder_callbacks.clear()
 
         _LOGGER.info("Alarm clock coordinator stopped")
 
@@ -318,6 +328,14 @@ class AlarmClockCoordinator:
         self._cancel_snooze_callback(alarm_id)
         self._cancel_auto_dismiss_callback(alarm_id)
         self._cancel_pre_alarm_callback(alarm_id)
+
+        # Clean up tracking dicts to prevent memory leaks
+        self._last_trigger_times.pop(alarm_id, None)
+
+        # Cancel and remove any script watchdog tasks
+        if alarm_id in self._script_watchdog_tasks:
+            self._script_watchdog_tasks[alarm_id].cancel()
+            del self._script_watchdog_tasks[alarm_id]
 
         # Remove from store
         await self.store.async_remove_alarm(alarm_id)
@@ -1581,7 +1599,49 @@ class AlarmClockCoordinator:
                 DOMAIN, SERVICE_DELETE_ALARM, handle_delete_alarm, schema=delete_alarm_schema
             )
 
+        self._services_registered = True
         _LOGGER.debug("Registered alarm clock services")
+
+    async def async_unregister_services(self) -> None:
+        """Unregister services if this coordinator registered them."""
+        if not self._services_registered:
+            return
+
+        # Check if there are other config entries still using this domain
+        # Only unregister services if this is the last entry
+        other_entries = [
+            entry_id
+            for entry_id in self.hass.data.get(DOMAIN, {})
+            if entry_id != self.entry.entry_id and entry_id != "_register_resource"
+        ]
+
+        if other_entries:
+            _LOGGER.debug(
+                "Not unregistering services - other entries still active: %s",
+                other_entries,
+            )
+            return
+
+        # Unregister all services
+        services_to_remove = [
+            SERVICE_SNOOZE,
+            SERVICE_DISMISS,
+            SERVICE_SKIP_NEXT,
+            SERVICE_CANCEL_SKIP,
+            SERVICE_TEST_ALARM,
+            SERVICE_SET_TIME,
+            SERVICE_SET_DAYS,
+            SERVICE_SET_SCRIPTS,
+            SERVICE_CREATE_ALARM,
+            SERVICE_DELETE_ALARM,
+        ]
+
+        for service_name in services_to_remove:
+            if self.hass.services.has_service(DOMAIN, service_name):
+                self.hass.services.async_remove(DOMAIN, service_name)
+
+        self._services_registered = False
+        _LOGGER.debug("Unregistered alarm clock services")
 
     def _entity_id_to_alarm_id(self, entity_id: str) -> str | None:
         """Convert entity ID to alarm ID."""
