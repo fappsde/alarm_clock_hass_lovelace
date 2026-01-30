@@ -364,9 +364,7 @@ class AlarmClockCoordinator:
                     _LOGGER.debug("Removing entity %s for alarm %s", entity_id, alarm_id)
                     entity_registry.async_remove(entity_id)
             except Exception as entity_err:
-                _LOGGER.warning(
-                    "Error removing entities for alarm %s: %s", alarm_id, entity_err
-                )
+                _LOGGER.warning("Error removing entities for alarm %s: %s", alarm_id, entity_err)
 
             # Remove from memory
             del self._alarms[alarm_id]
@@ -1334,9 +1332,7 @@ class AlarmClockCoordinator:
         """Notify all entity adder callbacks of a new alarm."""
         # Verify alarm exists before notifying (defensive check)
         if alarm_id not in self._alarms:
-            _LOGGER.warning(
-                "Skipping entity adder notification - alarm %s not found", alarm_id
-            )
+            _LOGGER.warning("Skipping entity adder notification - alarm %s not found", alarm_id)
             return
 
         # Use a copy of the list to avoid issues if callbacks modify the list
@@ -1427,7 +1423,9 @@ class AlarmClockCoordinator:
             try:
                 entity_id = call.data[ATTR_ENTITY_ID]
                 duration = call.data.get(ATTR_DURATION)
-                _LOGGER.debug("handle_snooze called: entity_id=%s, duration=%s", entity_id, duration)
+                _LOGGER.debug(
+                    "handle_snooze called: entity_id=%s, duration=%s", entity_id, duration
+                )
                 alarm_id = self._entity_id_to_alarm_id(entity_id)
                 if alarm_id:
                     _LOGGER.debug("Resolved to alarm_id=%s, calling async_snooze", alarm_id)

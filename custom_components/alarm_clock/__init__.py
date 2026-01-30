@@ -269,9 +269,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = True
 
     try:
-        coordinator: AlarmClockCoordinator | None = hass.data.get(DOMAIN, {}).get(
-            entry.entry_id
-        )
+        coordinator: AlarmClockCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
 
         if coordinator is None:
             _LOGGER.warning(

@@ -112,9 +112,7 @@ class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
             "skip_next": alarm.data.skip_next,
             "snooze_count": alarm.snooze_count,
             "max_snooze_count": alarm.data.max_snooze_count,
-            "next_trigger": (
-                alarm.next_trigger.isoformat() if alarm.next_trigger else None
-            ),
+            "next_trigger": (alarm.next_trigger.isoformat() if alarm.next_trigger else None),
             "snooze_end_time": (
                 alarm.snooze_end_time.isoformat() if alarm.snooze_end_time else None
             ),
