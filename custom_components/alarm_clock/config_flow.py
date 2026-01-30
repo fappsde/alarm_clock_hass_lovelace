@@ -658,7 +658,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             }
             # Add the new values from user_input
             updated_options.update(user_input)
-            
+
             # Save to config entry options
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
