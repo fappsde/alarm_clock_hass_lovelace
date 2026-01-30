@@ -936,10 +936,12 @@ class AlarmClockCard extends LitElement {
         ) {
           // Filter by device: only include alarms with matching entry_id
           if (state.attributes.entry_id === configEntryId) {
+            // Only store necessary data to avoid circular references
+            // that cause "Maximum call stack size exceeded" errors
             alarms.push({
               entity_id: key,
-              state: state,
-              attributes: state.attributes,
+              state: { state: state.state },
+              attributes: { ...state.attributes },
             });
           }
         }
@@ -1225,7 +1227,12 @@ class AlarmClockCard extends LitElement {
   }
 
   _toggleDay(alarm, day, currentDays) {
-    console.log("_toggleDay called", { alarm, day, currentDays });
+    console.log("_toggleDay called", { 
+      entity_id: alarm.entity_id,
+      alarm_name: alarm.attributes.alarm_name,
+      day, 
+      currentDays 
+    });
 
     const newDays = currentDays.includes(day)
       ? currentDays.filter((d) => d !== day)
@@ -1290,7 +1297,11 @@ class AlarmClockCard extends LitElement {
   }
 
   _adjustTime(alarm, minutes) {
-    console.log("_adjustTime called", { alarm, minutes });
+    console.log("_adjustTime called", { 
+      entity_id: alarm.entity_id,
+      alarm_name: alarm.attributes.alarm_name,
+      minutes 
+    });
 
     const currentTime = alarm.attributes.alarm_time || "07:00";
     const [hours, mins] = currentTime.split(":").map(Number);
@@ -1325,7 +1336,10 @@ class AlarmClockCard extends LitElement {
   }
 
   _snoozeAlarm(alarm) {
-    console.log("_snoozeAlarm called", { alarm });
+    console.log("_snoozeAlarm called", { 
+      entity_id: alarm.entity_id,
+      alarm_name: alarm.attributes.alarm_name 
+    });
 
     this.hass.callService("alarm_clock", "snooze", {
       entity_id: alarm.entity_id,
@@ -1341,7 +1355,10 @@ class AlarmClockCard extends LitElement {
   }
 
   _dismissAlarm(alarm) {
-    console.log("_dismissAlarm called", { alarm });
+    console.log("_dismissAlarm called", { 
+      entity_id: alarm.entity_id,
+      alarm_name: alarm.attributes.alarm_name 
+    });
 
     this.hass.callService("alarm_clock", "dismiss", {
       entity_id: alarm.entity_id,
@@ -1357,7 +1374,11 @@ class AlarmClockCard extends LitElement {
   }
 
   _toggleSkip(alarm, skip) {
-    console.log("_toggleSkip called", { alarm, skip });
+    console.log("_toggleSkip called", { 
+      entity_id: alarm.entity_id,
+      alarm_name: alarm.attributes.alarm_name,
+      skip 
+    });
 
     const service = skip ? "skip_next" : "cancel_skip";
 
@@ -1377,7 +1398,10 @@ class AlarmClockCard extends LitElement {
   }
 
   _deleteAlarm(alarm) {
-    console.log("_deleteAlarm called", { alarm });
+    console.log("_deleteAlarm called", { 
+      entity_id: alarm.entity_id,
+      alarm_name: alarm.attributes.alarm_name 
+    });
 
     const alarmName = alarm.attributes.alarm_name || "this alarm";
 
@@ -1674,7 +1698,10 @@ class AlarmClockCard extends LitElement {
   }
 
   _confirmTimePicker() {
-    console.log("_confirmTimePicker called", { timePickerAlarm: this._timePickerAlarm });
+    console.log("_confirmTimePicker called", { 
+      entity_id: this._timePickerAlarm?.entity_id,
+      alarm_name: this._timePickerAlarm?.attributes?.alarm_name
+    });
 
     const hoursInput = this.shadowRoot.getElementById("hours-input");
     const minutesInput = this.shadowRoot.getElementById("minutes-input");
