@@ -125,20 +125,44 @@ class AlarmClockCoordinator:
 
     async def async_start(self) -> None:
         """Start the coordinator."""
-        _LOGGER.debug("Starting alarm clock coordinator")
+        _LOGGER.info("Starting alarm clock coordinator")
         self._running = True
 
-        # Load alarms from store
-        for alarm_data in self.store.get_all_alarms():
-            await self._async_setup_alarm(alarm_data)
+        try:
+            # Load alarms from store
+            alarms_to_load = self.store.get_all_alarms()
+            _LOGGER.debug("Loading %d alarms from storage", len(alarms_to_load))
 
-        # Check for missed alarms
-        await self._async_check_missed_alarms()
+            for alarm_data in alarms_to_load:
+                try:
+                    await self._async_setup_alarm(alarm_data)
+                    _LOGGER.debug("Successfully loaded alarm: %s", alarm_data.alarm_id)
+                except Exception as err:
+                    _LOGGER.error(
+                        "Failed to setup alarm %s: %s. Skipping this alarm.",
+                        alarm_data.alarm_id,
+                        err,
+                        exc_info=True,
+                    )
+                    # Continue loading other alarms even if one fails
 
-        # Start health check
-        self._schedule_health_check()
+            # Check for missed alarms
+            _LOGGER.debug("Checking for missed alarms")
+            await self._async_check_missed_alarms()
 
-        _LOGGER.info("Alarm clock coordinator started with %d alarms", len(self._alarms))
+            # Start health check
+            _LOGGER.debug("Starting health check")
+            self._schedule_health_check()
+
+            _LOGGER.info(
+                "Alarm clock coordinator started successfully with %d alarms", len(self._alarms)
+            )
+
+        except Exception as err:
+            _LOGGER.error("Critical error during coordinator startup: %s", err, exc_info=True)
+            # Mark as not running to prevent further issues
+            self._running = False
+            raise
 
     async def async_stop(self) -> None:
         """Stop the coordinator."""
@@ -176,57 +200,75 @@ class AlarmClockCoordinator:
 
     async def _async_setup_alarm(self, alarm_data: AlarmData) -> None:
         """Set up a single alarm."""
-        # Validate alarm data
-        errors = alarm_data.validate()
-        if errors:
+        try:
+            # Validate alarm data
+            errors = alarm_data.validate()
+            if errors:
+                _LOGGER.error(
+                    "Invalid alarm data for %s: %s. Disabling alarm.",
+                    alarm_data.alarm_id,
+                    errors,
+                )
+                alarm_data.enabled = False
+                await self.store.async_update_alarm(alarm_data)
+                self._fire_event(
+                    AlarmEvent.HEALTH_WARNING,
+                    {
+                        ATTR_ALARM_ID: alarm_data.alarm_id,
+                        ATTR_ERROR_MESSAGE: f"Alarm disabled due to invalid data: {errors}",
+                    },
+                )
+
+            # Create state machine
+            alarm = AlarmStateMachine(
+                self.hass,
+                alarm_data,
+                on_state_change=lambda old, new: self._on_alarm_state_change(
+                    alarm_data.alarm_id, old, new
+                ),
+            )
+
+            # Restore runtime state if available
+            runtime_state = self.store.get_runtime_state(alarm_data.alarm_id)
+            if runtime_state:
+                try:
+                    alarm.restore_from_data(runtime_state)
+                    _LOGGER.debug(
+                        "Restored state for alarm %s: %s",
+                        alarm_data.alarm_id,
+                        alarm.state,
+                    )
+                except Exception as err:
+                    _LOGGER.warning(
+                        "Failed to restore runtime state for alarm %s: %s. Using default state.",
+                        alarm_data.alarm_id,
+                        err,
+                    )
+                    # State machine will use default state
+
+            self._alarms[alarm_data.alarm_id] = alarm
+
+            # Schedule if armed
+            if alarm.state == AlarmState.ARMED:
+                await self._schedule_alarm(alarm_data.alarm_id)
+
+            # Handle restored snooze state
+            if alarm.state == AlarmState.SNOOZED and alarm.snooze_end_time:
+                now = dt_util.now()
+                if alarm.snooze_end_time > now:
+                    self._schedule_snooze_end(alarm_data.alarm_id, alarm.snooze_end_time)
+                else:
+                    # Snooze expired, trigger alarm
+                    await self._async_trigger_alarm(alarm_data.alarm_id, TRIGGER_SCHEDULED)
+
+        except Exception as err:
             _LOGGER.error(
-                "Invalid alarm data for %s: %s. Disabling alarm.",
+                "Failed to setup alarm %s: %s",
                 alarm_data.alarm_id,
-                errors,
+                err,
+                exc_info=True,
             )
-            alarm_data.enabled = False
-            await self.store.async_update_alarm(alarm_data)
-            self._fire_event(
-                AlarmEvent.HEALTH_WARNING,
-                {
-                    ATTR_ALARM_ID: alarm_data.alarm_id,
-                    ATTR_ERROR_MESSAGE: f"Alarm disabled due to invalid data: {errors}",
-                },
-            )
-
-        # Create state machine
-        alarm = AlarmStateMachine(
-            self.hass,
-            alarm_data,
-            on_state_change=lambda old, new: self._on_alarm_state_change(
-                alarm_data.alarm_id, old, new
-            ),
-        )
-
-        # Restore runtime state if available
-        runtime_state = self.store.get_runtime_state(alarm_data.alarm_id)
-        if runtime_state:
-            alarm.restore_from_data(runtime_state)
-            _LOGGER.debug(
-                "Restored state for alarm %s: %s",
-                alarm_data.alarm_id,
-                alarm.state,
-            )
-
-        self._alarms[alarm_data.alarm_id] = alarm
-
-        # Schedule if armed
-        if alarm.state == AlarmState.ARMED:
-            await self._schedule_alarm(alarm_data.alarm_id)
-
-        # Handle restored snooze state
-        if alarm.state == AlarmState.SNOOZED and alarm.snooze_end_time:
-            now = dt_util.now()
-            if alarm.snooze_end_time > now:
-                self._schedule_snooze_end(alarm_data.alarm_id, alarm.snooze_end_time)
-            else:
-                # Snooze expired, trigger alarm
-                await self._async_trigger_alarm(alarm_data.alarm_id, TRIGGER_SCHEDULED)
+            raise
 
     async def async_add_alarm(self, alarm_data: AlarmData) -> None:
         """Add a new alarm."""
