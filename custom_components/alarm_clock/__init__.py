@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -12,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 # Try importing StaticPathConfig for HA 2024.6+, fall back for older versions
 try:
@@ -119,6 +121,54 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
         )
 
 
+async def _async_cleanup_orphan_entities(
+    hass: HomeAssistant, entry: ConfigEntry, valid_alarm_ids: set[str]
+) -> None:
+    """Remove orphan entities that reference non-existent alarms."""
+    entity_registry = er.async_get(hass)
+    entities_to_remove = []
+
+    # Find entities belonging to this config entry
+    for entity_id, entity_entry in entity_registry.entities.items():
+        if entity_entry.config_entry_id != entry.entry_id:
+            continue
+
+        # Check if this entity is for a specific alarm (not a device-level entity)
+        unique_id = entity_entry.unique_id or ""
+        # Device-level entities don't have alarm IDs in their unique_id
+        # Alarm-specific entities have format: {entry_id}_{alarm_id}_{entity_type}
+        if not unique_id.startswith(entry.entry_id):
+            continue
+
+        # Extract potential alarm_id from unique_id
+        # Format: {entry_id}_{alarm_id}_{entity_type}
+        parts = unique_id.split("_")
+        if len(parts) >= 3:
+            # Reconstruct the alarm_id (it might contain underscores)
+            # The alarm_id is between entry_id and the last part (entity_type)
+            potential_alarm_id = "_".join(parts[1:-1])
+
+            # Skip device-level entities (they don't have alarm_ prefix)
+            if not potential_alarm_id.startswith("alarm_"):
+                continue
+
+            # Check if this alarm still exists
+            if potential_alarm_id not in valid_alarm_ids:
+                entities_to_remove.append((entity_id, potential_alarm_id))
+
+    # Remove orphan entities
+    for entity_id, alarm_id in entities_to_remove:
+        _LOGGER.info(
+            "Removing orphan entity %s (alarm %s no longer exists)",
+            entity_id,
+            alarm_id,
+        )
+        entity_registry.async_remove(entity_id)
+
+    if entities_to_remove:
+        _LOGGER.info("Cleaned up %d orphan entities", len(entities_to_remove))
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Alarm Clock from a config entry."""
     _LOGGER.debug("Setting up Alarm Clock integration: %s", entry.entry_id)
@@ -132,6 +182,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Initialize store for persistent data
         store = AlarmClockStore(hass, entry)
         await store.async_load()
+
+        # Clean up orphan entities before creating new ones
+        valid_alarm_ids = {alarm.alarm_id for alarm in store.get_all_alarms()}
+        await _async_cleanup_orphan_entities(hass, entry, valid_alarm_ids)
 
         # Create coordinator
         coordinator = AlarmClockCoordinator(hass, entry, store)
@@ -155,8 +209,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # This ensures alarms are loaded from storage before entities try to access them
         await coordinator.async_start()
 
-        # Setup platforms - entities can now access coordinator.alarms
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        # Setup platforms with timeout protection - entities can now access coordinator.alarms
+        try:
+            await asyncio.wait_for(
+                hass.config_entries.async_forward_entry_setups(entry, PLATFORMS),
+                timeout=30.0,  # 30 second timeout for platform setup
+            )
+        except TimeoutError:
+            _LOGGER.error(
+                "Timeout setting up platforms for Alarm Clock integration. "
+                "This may indicate a configuration issue."
+            )
+            # Stop coordinator since setup failed
+            await coordinator.async_stop()
+            if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+                hass.data[DOMAIN].pop(entry.entry_id)
+            return False
 
         # Validate referenced entities after startup
         await coordinator.async_validate_entities()

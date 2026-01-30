@@ -368,6 +368,9 @@ class AlarmStateMachine:
             "snooze_end_time": (
                 self._runtime.snooze_end_time.isoformat() if self._runtime.snooze_end_time else None
             ),
+            "next_trigger": (
+                self._runtime.next_trigger.isoformat() if self._runtime.next_trigger else None
+            ),
         }
 
     def restore_from_data(self, data: dict[str, Any]) -> None:
@@ -416,6 +419,22 @@ class AlarmStateMachine:
                 except (ValueError, TypeError) as err:
                     _LOGGER.warning(
                         "Invalid snooze_end_time datetime for alarm %s: %s",
+                        self.data.alarm_id,
+                        err,
+                    )
+
+            if data.get("next_trigger"):
+                try:
+                    dt = datetime.fromisoformat(data["next_trigger"])
+                    # Ensure timezone-aware datetime
+                    if dt.tzinfo is None:
+                        import homeassistant.util.dt as dt_util
+
+                        dt = dt_util.as_local(dt)
+                    self._runtime.next_trigger = dt
+                except (ValueError, TypeError) as err:
+                    _LOGGER.warning(
+                        "Invalid next_trigger datetime for alarm %s: %s",
                         self.data.alarm_id,
                         err,
                     )
