@@ -648,10 +648,45 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Handle device-level default scripts configuration."""
         if user_input is not None:
-            # Save to config entry options
+            # List of all default script configuration keys (entity selectors)
+            script_entity_keys = [
+                CONF_DEFAULT_SCRIPT_PRE_ALARM,
+                CONF_DEFAULT_SCRIPT_ALARM,
+                CONF_DEFAULT_SCRIPT_POST_ALARM,
+                CONF_DEFAULT_SCRIPT_ON_SNOOZE,
+                CONF_DEFAULT_SCRIPT_ON_DISMISS,
+                CONF_DEFAULT_SCRIPT_ON_ARM,
+                CONF_DEFAULT_SCRIPT_ON_CANCEL,
+                CONF_DEFAULT_SCRIPT_ON_SKIP,
+                CONF_DEFAULT_SCRIPT_FALLBACK,
+            ]
+
+            # Start with existing options, but remove all script keys
+            # We'll re-add only the non-empty ones from user_input
+            new_options = {k: v for k, v in self.config_entry.options.items()
+                          if k not in script_entity_keys
+                          and k != CONF_DEFAULT_SCRIPT_TIMEOUT
+                          and k != CONF_DEFAULT_SCRIPT_RETRY_COUNT}
+
+            # Process entity selector fields - only add if they have a value
+            for key in script_entity_keys:
+                value = user_input.get(key, "")
+                if value:
+                    # Has a valid value, add it to options
+                    new_options[key] = value
+
+            # Process number fields - always include with their values
+            new_options[CONF_DEFAULT_SCRIPT_TIMEOUT] = user_input.get(
+                CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+            )
+            new_options[CONF_DEFAULT_SCRIPT_RETRY_COUNT] = user_input.get(
+                CONF_DEFAULT_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
+            )
+
+            # Save updated options to config entry
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
-                options={**self.config_entry.options, **user_input},
+                options=new_options,
             )
             return self.async_create_entry(title="", data={})
 
@@ -667,9 +702,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_PRE_ALARM,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_PRE_ALARM)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_PRE_ALARM, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -677,9 +710,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ALARM,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ALARM)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ALARM, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -687,9 +718,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_POST_ALARM,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_POST_ALARM)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_POST_ALARM, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -697,9 +726,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_SNOOZE,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_SNOOZE)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_SNOOZE, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -707,9 +734,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_DISMISS,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_DISMISS)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_DISMISS, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -717,9 +742,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_ARM,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_ARM)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_ARM, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -727,9 +750,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_CANCEL,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_CANCEL)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_CANCEL, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -737,9 +758,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_SKIP,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_ON_SKIP)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_ON_SKIP, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -747,9 +766,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_FALLBACK,
-                        description={
-                            "suggested_value": current_options.get(CONF_DEFAULT_SCRIPT_FALLBACK)
-                        },
+                        default=current_options.get(CONF_DEFAULT_SCRIPT_FALLBACK, ""),
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -757,11 +774,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_TIMEOUT,
-                        description={
-                            "suggested_value": current_options.get(
-                                CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
-                            )
-                        },
+                        default=current_options.get(
+                            CONF_DEFAULT_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+                        ),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=1,
@@ -773,12 +788,10 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_RETRY_COUNT,
-                        description={
-                            "suggested_value": current_options.get(
-                                CONF_DEFAULT_SCRIPT_RETRY_COUNT,
-                                DEFAULT_SCRIPT_RETRY_COUNT,
-                            )
-                        },
+                        default=current_options.get(
+                            CONF_DEFAULT_SCRIPT_RETRY_COUNT,
+                            DEFAULT_SCRIPT_RETRY_COUNT,
+                        ),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=0, max=10, step=1, mode=selector.NumberSelectorMode.BOX
