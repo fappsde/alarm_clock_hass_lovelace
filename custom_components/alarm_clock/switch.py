@@ -102,6 +102,10 @@ class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
         alarm = self.alarm
         if alarm is None:
             return {"entry_id": self.entry.entry_id}
+
+        # Get script information from coordinator
+        scripts_info = self.coordinator.get_alarm_scripts_info(alarm)
+
         return {
             "alarm_id": alarm.data.alarm_id,
             "alarm_name": alarm.data.name,
@@ -117,6 +121,18 @@ class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
                 alarm.snooze_end_time.isoformat() if alarm.snooze_end_time else None
             ),
             "entry_id": self.entry.entry_id,
+            "use_device_defaults": scripts_info["use_device_defaults"],
+            "script_pre_alarm": scripts_info["script_pre_alarm"],
+            "script_alarm": scripts_info["script_alarm"],
+            "script_post_alarm": scripts_info["script_post_alarm"],
+            "script_on_snooze": scripts_info["script_on_snooze"],
+            "script_on_dismiss": scripts_info["script_on_dismiss"],
+            "script_on_arm": scripts_info["script_on_arm"],
+            "script_on_cancel": scripts_info["script_on_cancel"],
+            "script_on_skip": scripts_info["script_on_skip"],
+            "script_fallback": scripts_info["script_fallback"],
+            "script_timeout": scripts_info["script_timeout"],
+            "script_retry_count": scripts_info["script_retry_count"],
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:

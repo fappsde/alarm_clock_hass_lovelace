@@ -991,6 +991,36 @@ class AlarmClockCoordinator:
             return alarm.data.script_retry_count
         return self.entry.options.get("default_script_retry_count", 3)
 
+    def get_alarm_scripts_info(self, alarm: AlarmStateMachine) -> dict[str, Any]:
+        """Get all effective scripts and their sources for an alarm.
+
+        Returns a dict with script entity IDs and whether they are from device defaults.
+        """
+        script_attrs = [
+            "script_pre_alarm",
+            "script_alarm",
+            "script_post_alarm",
+            "script_on_snooze",
+            "script_on_dismiss",
+            "script_on_arm",
+            "script_on_cancel",
+            "script_on_skip",
+            "script_fallback",
+        ]
+
+        result = {
+            "use_device_defaults": alarm.data.use_device_defaults,
+            "script_timeout": self._get_effective_script_timeout(alarm),
+            "script_retry_count": self._get_effective_script_retry_count(alarm),
+        }
+
+        # Add each script with its entity ID
+        for script_attr in script_attrs:
+            effective_script = self._get_effective_script(alarm, script_attr)
+            result[script_attr] = effective_script
+
+        return result
+
     async def _async_execute_script(
         self,
         alarm_id: str,
