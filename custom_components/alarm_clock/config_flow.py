@@ -338,7 +338,8 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
             if errors:
                 # Re-show form with errors
-                use_defaults = self._alarm_data.get(CONF_USE_DEVICE_DEFAULTS, True)
+                # Read use_defaults from user_input to reflect the current toggle state
+                use_defaults = user_input.get(CONF_USE_DEVICE_DEFAULTS, True)
                 return self.async_show_form(
                     step_id="alarm_advanced",
                     data_schema=self._build_advanced_schema(use_defaults),
