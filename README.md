@@ -211,6 +211,63 @@ Device-level entities:
 2. Look at diagnostics for issues
 3. Verify `.storage` files exist
 
+### Integration crashes or becomes unresponsive
+If you experience crashes or infinite loops (especially after v1.0.7):
+1. Stop Home Assistant: `systemctl stop home-assistant`
+2. Remove integration configuration from `.storage/core.config_entries` (look for `alarm_clock` entries)
+3. Restart Home Assistant: `systemctl start home-assistant`
+4. Reinstall the latest version via HACS
+5. Reconfigure your alarms
+
+**Note**: Version 1.0.8 and later fix a critical config flow bug that could cause HA crashes.
+
+### HACS or custom cards not loading
+If custom cards fail to load after installing this integration:
+1. Clear your browser cache (Ctrl+Shift+R or Cmd+Shift+R)
+2. Ensure you're running version 1.0.8 or later (earlier versions had frontend issues)
+3. Check Home Assistant logs for JavaScript errors
+4. Verify the card resource is properly registered in Lovelace
+
+### Frontend errors in browser console
+If you see errors like "Maximum call stack size exceeded" or "custom element not found":
+1. Update to the latest version (1.0.8+)
+2. Clear browser cache completely
+3. Restart Home Assistant
+4. These issues were fixed in recent releases with proper ES module imports
+
+## Known Issues & Version Notes
+
+### Version 1.0.7 - CRITICAL BUG (Deprecated)
+**Do not use version 1.0.7** - it contains a critical config flow bug that can crash Home Assistant.
+- **Issue**: Infinite loop when creating alarms with unchecked boolean fields
+- **Impact**: HA becomes unresponsive, HACS integration registry breaks
+- **Solution**: Upgrade to version 1.0.8 or later immediately
+
+### Version 1.0.8+ - Recommended
+All critical issues have been fixed in version 1.0.8 and later:
+- ✅ Config flow infinite loop fixed
+- ✅ Frontend poisoning issues resolved
+- ✅ Circular reference stack overflow fixed
+- ✅ Version synchronization working properly
+- ✅ Comprehensive test coverage added (26 tests)
+
+## Best Practices
+
+### For Users
+- **Always update to the latest version** via HACS
+- **Clear browser cache** after updates (Ctrl+Shift+R)
+- **Backup your configuration** before major updates
+- **Monitor Home Assistant logs** when creating new alarms
+- **Test alarms in development** before deploying to production
+
+### For Developers
+- **Run tests before committing**: `npm test` (frontend) and `pytest tests/` (backend)
+- **Test all code paths**, especially with optional/boolean fields
+- **Never access Home Assistant internals** - use official ES module imports
+- **Use explicit attribute extraction** to avoid circular references
+- **Keep versions synchronized** across manifest.json, package.json, and card
+- **Add tests for new features** to prevent regressions
+
 ## Contributing
 
 Contributions are welcome! Please:
