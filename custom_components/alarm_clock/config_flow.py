@@ -221,7 +221,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
 
         return vol.Schema(schema_dict)
 
-    def _build_edit_alarm_schema(self, alarm: AlarmStateMachine, use_defaults: bool | None = None) -> vol.Schema:
+    def _build_edit_alarm_schema(
+        self, alarm: AlarmStateMachine, use_defaults: bool | None = None
+    ) -> vol.Schema:
         """Build the edit alarm schema with current values."""
         # Parse current time
         try:
@@ -241,9 +243,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(
                 CONF_SNOOZE_DURATION, default=alarm.data.snooze_duration
             ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=1, max=60, step=1, unit_of_measurement="minutes"
-                )
+                selector.NumberSelectorConfig(min=1, max=60, step=1, unit_of_measurement="minutes")
             ),
             vol.Optional(
                 CONF_MAX_SNOOZE_COUNT, default=alarm.data.max_snooze_count
@@ -251,16 +251,12 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(
                 CONF_AUTO_DISMISS_TIMEOUT, default=alarm.data.auto_dismiss_timeout
             ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=1, max=180, step=1, unit_of_measurement="minutes"
-                )
+                selector.NumberSelectorConfig(min=1, max=180, step=1, unit_of_measurement="minutes")
             ),
             vol.Optional(
                 CONF_PRE_ALARM_DURATION, default=alarm.data.pre_alarm_duration
             ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0, max=60, step=1, unit_of_measurement="minutes"
-                )
+                selector.NumberSelectorConfig(min=0, max=60, step=1, unit_of_measurement="minutes")
             ),
             vol.Optional(
                 CONF_USE_DEVICE_DEFAULTS, default=alarm.data.use_device_defaults
@@ -273,76 +269,40 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_SCRIPT_PRE_ALARM,
-                        description={
-                            "suggested_value": alarm.data.script_pre_alarm
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_pre_alarm},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_ALARM,
-                        description={
-                            "suggested_value": alarm.data.script_alarm
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_alarm},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_POST_ALARM,
-                        description={
-                            "suggested_value": alarm.data.script_post_alarm
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_post_alarm},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_ON_SNOOZE,
-                        description={
-                            "suggested_value": alarm.data.script_on_snooze
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_on_snooze},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_ON_DISMISS,
-                        description={
-                            "suggested_value": alarm.data.script_on_dismiss
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_on_dismiss},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_ON_ARM,
-                        description={
-                            "suggested_value": alarm.data.script_on_arm
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_on_arm},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_ON_CANCEL,
-                        description={
-                            "suggested_value": alarm.data.script_on_cancel
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_on_cancel},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_ON_SKIP,
-                        description={
-                            "suggested_value": alarm.data.script_on_skip
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_on_skip},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_FALLBACK,
-                        description={
-                            "suggested_value": alarm.data.script_fallback
-                        },
-                    ): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain="script")
-                    ),
+                        description={"suggested_value": alarm.data.script_fallback},
+                    ): selector.EntitySelector(selector.EntitySelectorConfig(domain="script")),
                     vol.Optional(
                         CONF_SCRIPT_TIMEOUT, default=alarm.data.script_timeout
                     ): selector.NumberSelector(
@@ -790,7 +750,9 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 alarm.data.script_on_cancel = user_input.get(CONF_SCRIPT_ON_CANCEL)
                 alarm.data.script_on_skip = user_input.get(CONF_SCRIPT_ON_SKIP)
                 alarm.data.script_fallback = user_input.get(CONF_SCRIPT_FALLBACK)
-                alarm.data.script_timeout = user_input.get(CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT)
+                alarm.data.script_timeout = user_input.get(
+                    CONF_SCRIPT_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT
+                )
                 alarm.data.script_retry_count = user_input.get(
                     CONF_SCRIPT_RETRY_COUNT, DEFAULT_SCRIPT_RETRY_COUNT
                 )
@@ -854,9 +816,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_PRE_ALARM,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_PRE_ALARM)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_PRE_ALARM)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -864,9 +824,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ALARM,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_ALARM)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_ALARM)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -874,9 +832,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_POST_ALARM,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_POST_ALARM)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_POST_ALARM)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -884,9 +840,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_SNOOZE,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_SNOOZE)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_SNOOZE)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -894,9 +848,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_DISMISS,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_DISMISS)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_DISMISS)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -904,9 +856,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_ARM,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_ARM)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_ARM)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -914,9 +864,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_CANCEL,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_CANCEL)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_CANCEL)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -924,9 +872,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_ON_SKIP,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_SKIP)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_ON_SKIP)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
@@ -934,9 +880,7 @@ class AlarmClockOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Optional(
                         CONF_DEFAULT_SCRIPT_FALLBACK,
-                        description={
-                            "suggested_value": get_option(CONF_DEFAULT_SCRIPT_FALLBACK)
-                        },
+                        description={"suggested_value": get_option(CONF_DEFAULT_SCRIPT_FALLBACK)},
                     ): selector.EntitySelector(
                         selector.EntitySelectorConfig(
                             domain="script",
