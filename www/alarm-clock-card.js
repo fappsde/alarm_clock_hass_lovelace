@@ -34,6 +34,10 @@ if (!window.customCards.some(card => card.type === "alarm-clock-card")) {
 }
 
 class AlarmClockCard extends LitElement {
+  static get type() {
+    return "alarm-clock-card";
+  }
+
   static get properties() {
     return {
       hass: { type: Object },
