@@ -33,6 +33,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify lockfile exists
+        run: test -f package-lock.json || (echo "❌ package-lock.json missing! Run 'npm install' and commit it." && exit 1)
+
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
@@ -63,6 +66,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Verify lockfile exists
+        run: test -f package-lock.json || (echo "❌ package-lock.json missing! Run 'npm install' and commit it." && exit 1)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -106,6 +112,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Verify lockfile exists
+        run: test -f package-lock.json || (echo "❌ package-lock.json missing! Run 'npm install' and commit it." && exit 1)
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

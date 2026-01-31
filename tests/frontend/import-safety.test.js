@@ -13,21 +13,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 describe('Import Safety Test', () => {
-  beforeEach(() => {
-    // Clear any previous imports
-    delete window._alarmClockCardLogged;
-    window.customCards = [];
-  });
+  // Note: setup.js imports the module once before all tests
+  // This is realistic browser behavior - ES modules are cached
 
   it('should import module without throwing', async () => {
     // This is the critical test: import should not throw
-    expect(async () => {
+    let error = null;
+    try {
       await import('../../custom_components/alarm_clock/alarm-clock-card.js');
-    }).not.toThrow();
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeNull();
   });
 
   it('should complete module evaluation', async () => {
-    // Import the module
+    // Import the module (will return cached version)
     const module = await import('../../custom_components/alarm_clock/alarm-clock-card.js');
 
     // Module should be defined
@@ -37,14 +38,10 @@ describe('Import Safety Test', () => {
     expect(true).toBe(true);
   });
 
-  it('should register card in window.customCards', async () => {
-    // Import the module
-    await import('../../custom_components/alarm_clock/alarm-clock-card.js');
-
-    // Card should be registered
+  it('should register card in window.customCards', () => {
+    // Card was registered during module load (happens once)
     expect(window.customCards).toBeDefined();
     expect(Array.isArray(window.customCards)).toBe(true);
-    expect(window.customCards.length).toBeGreaterThan(0);
 
     // Find our card
     const alarmCard = window.customCards.find(
@@ -54,34 +51,28 @@ describe('Import Safety Test', () => {
     expect(alarmCard).toBeDefined();
     expect(alarmCard.name).toBe('Alarm Clock Card');
     expect(alarmCard.type).toBe('alarm-clock-card');
+    expect(alarmCard.version).toBeDefined();
   });
 
-  it('should define custom elements', async () => {
-    // Import the module
-    await import('../../custom_components/alarm_clock/alarm-clock-card.js');
-
-    // Custom elements should be defined
+  it('should define custom elements', () => {
+    // Custom elements should be defined (from module load)
     expect(customElements.get('alarm-clock-card')).toBeDefined();
     expect(customElements.get('alarm-clock-card-editor')).toBeDefined();
   });
 
-  it('should not throw if imported before lit is available', async () => {
-    // This simulates the condition that caused the original bug
-    // Even if dependencies aren't ready, the import should not throw
-    // (it should fail gracefully or the import system should handle it)
-
-    // Clear customElements to simulate not being ready
-    const originalGet = customElements.get;
-    customElements.get = () => undefined;
-
+  it('should use standard ES module import from lit', async () => {
+    // Verify the module is using safe imports
+    // This is tested by successfully importing it
+    let error = null;
     try {
-      // Import should still not throw even if elements aren't found
-      // (The ES module import system handles this)
       await import('../../custom_components/alarm_clock/alarm-clock-card.js');
-      expect(true).toBe(true); // If we get here, no throw occurred
-    } finally {
-      // Restore
-      customElements.get = originalGet;
+    } catch (e) {
+      error = e;
     }
+
+    // If import succeeded, it means it's using proper ES module imports
+    // If it were using Object.getPrototypeOf(customElements.get("ha-panel-lovelace")),
+    // it would have thrown since ha-panel-lovelace doesn't exist in test env
+    expect(error).toBeNull();
   });
 });

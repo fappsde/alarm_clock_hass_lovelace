@@ -1,41 +1,35 @@
 /**
  * Test setup for frontend tests
  * Provides mocks and globals needed for Lovelace card testing
+ *
+ * IMPORTANT: We use happy-dom which provides customElements, window, HTMLElement, etc.
+ * We should NOT override these - just extend them where needed.
+ *
+ * CRITICAL: ES modules are cached and only evaluated once.
+ * This means the alarm-clock-card.js module will only run its top-level code once,
+ * not on every test. This is REALISTIC browser behavior.
+ * Tests must account for this.
  */
 
-// Mock window.customCards
+import { beforeAll } from 'vitest';
+
+// Initialize window.customCards array (used by Lovelace cards)
+// happy-dom provides window, we just need to ensure customCards exists
 if (typeof window !== 'undefined') {
   window.customCards = window.customCards || [];
+
+  // Ensure window has a global reference (some modules expect this)
+  if (!window.window) {
+    window.window = window;
+  }
 }
 
-// Mock customElements if not available
-if (typeof customElements === 'undefined') {
-  global.customElements = {
-    _elements: new Map(),
-    define(name, constructor) {
-      if (this._elements.has(name)) {
-        throw new DOMException(
-          `Failed to execute 'define' on 'CustomElementRegistry': the name "${name}" has already been used with this registry`
-        );
-      }
-      this._elements.set(name, constructor);
-    },
-    get(name) {
-      return this._elements.get(name);
-    },
-    whenDefined(name) {
-      return Promise.resolve(this._elements.get(name));
-    },
-  };
-}
-
-// Clean up between tests
-afterEach(() => {
-  if (typeof window !== 'undefined') {
-    delete window._alarmClockCardLogged;
-    window.customCards = [];
-  }
-  if (typeof customElements !== 'undefined' && customElements._elements) {
-    customElements._elements.clear();
-  }
+// Import the card once before all tests
+// This ensures it's loaded and registered
+beforeAll(async () => {
+  await import('../../custom_components/alarm_clock/alarm-clock-card.js');
 });
+
+// Note: We do NOT clear window.customCards or customElements between tests
+// because ES modules are cached (realistic browser behavior)
+// Tests must be written to handle already-registered elements and cards

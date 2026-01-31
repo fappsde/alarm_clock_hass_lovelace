@@ -16,39 +16,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { LitElement, html, css } from 'lit';
 
 describe('Global Safety Test - Frontend Poisoning Prevention', () => {
-  beforeEach(() => {
-    // Clear state
-    delete window._alarmClockCardLogged;
-    window.customCards = [];
+  // Note: setup.js imports the module once before all tests
+  // This is realistic browser behavior - ES modules are cached
 
-    if (customElements._elements) {
-      customElements._elements.clear();
-    }
-  });
+  it('CRITICAL: alarm card must not prevent other cards from loading', () => {
+    // The alarm card was already imported in setup.js
+    // Now test that other cards can still register
 
-  it('CRITICAL: broken card must not prevent other cards from loading', async () => {
-    // Simulate a broken card that throws during import
-    const brokenCardCode = `
-      import { LitElement } from 'lit';
-
-      // This simulates the OLD BUGGY code:
-      // const LitElement = Object.getPrototypeOf(
-      //   customElements.get("ha-panel-lovelace")  // <- throws if not defined
-      // );
-
-      // Simulate an error condition
-      if (!customElements.get('non-existent-element')) {
-        // In the old code, this would throw and break everything
-        // In the new code with proper imports, this never happens
-      }
-
-      class BrokenCard extends LitElement {}
-    `;
-
-    // Now import our actual card (which should use safe imports)
-    await import('../../custom_components/alarm_clock/alarm-clock-card.js');
-
-    // Then try to define a good card
+    // Define a good card
     class DummyGoodCard extends LitElement {
       static get properties() {
         return {
@@ -57,11 +32,12 @@ describe('Global Safety Test - Frontend Poisoning Prevention', () => {
       }
 
       render() {
-        return html\`<div>Good Card Works!</div>\`;
+        return html`<div>Good Card Works!</div>`;
       }
     }
 
     // This MUST NOT THROW - this is the critical test
+    // If alarm card used unsafe imports that threw, this wouldn't work
     expect(() => {
       if (!customElements.get('dummy-good-card')) {
         customElements.define('dummy-good-card', DummyGoodCard);
@@ -142,7 +118,8 @@ describe('Global Safety Test - Frontend Poisoning Prevention', () => {
       description: 'Test',
     });
 
-    expect(window.customCards).toHaveLength(2);
+    // Should have at least these two cards
+    expect(window.customCards.length).toBeGreaterThanOrEqual(2);
 
     const alarmCard = window.customCards.find(c => c.type === 'alarm-clock-card');
     const anotherCard = window.customCards.find(c => c.type === 'another-card');
@@ -151,7 +128,7 @@ describe('Global Safety Test - Frontend Poisoning Prevention', () => {
     expect(anotherCard).toBeDefined();
   });
 
-  it('CRITICAL: simulates the exact original failure scenario', async () => {
+  it('CRITICAL: simulates the exact original failure scenario', () => {
     /**
      * Original Bug Scenario:
      * 1. User has 10 custom cards installed
@@ -167,9 +144,7 @@ describe('Global Safety Test - Frontend Poisoning Prevention', () => {
      * This test verifies that scenario is IMPOSSIBLE with the fix.
      */
 
-    // Step 1: Import alarm card (which now uses safe imports)
-    await import('../../custom_components/alarm_clock/alarm-clock-card.js');
-
+    // Step 1: Alarm card was already imported in setup.js (uses safe imports)
     // Step 2: Verify alarm card loaded successfully
     expect(customElements.get('alarm-clock-card')).toBeDefined();
 
@@ -178,20 +153,20 @@ describe('Global Safety Test - Frontend Poisoning Prevention', () => {
     for (let i = 1; i <= 10; i++) {
       class OtherCard extends LitElement {
         render() {
-          return html\`<div>Card \${i}</div>\`;
+          return html`<div>Card ${i}</div>`;
         }
       }
       otherCards.push(OtherCard);
 
       // This MUST NOT THROW
       expect(() => {
-        customElements.define(\`other-card-\${i}\`, OtherCard);
+        customElements.define(`other-card-${i}`, OtherCard);
       }).not.toThrow();
     }
 
     // Step 4: Verify ALL cards registered successfully
     for (let i = 1; i <= 10; i++) {
-      expect(customElements.get(\`other-card-\${i}\`)).toBe(otherCards[i - 1]);
+      expect(customElements.get(`other-card-${i}`)).toBe(otherCards[i - 1]);
     }
 
     // Step 5: Verify alarm card still works
