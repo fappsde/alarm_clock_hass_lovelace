@@ -1,32 +1,79 @@
 /**
  * Alarm Clock Card for Home Assistant
  * A feature-rich Lovelace card for managing alarms
+ *
+ * SAFETY: This module is designed to fail gracefully without breaking other Lovelace cards
  */
-
-const LitElement = Object.getPrototypeOf(
-  customElements.get("ha-panel-lovelace")
-);
-const html = LitElement.prototype.html;
-const css = LitElement.prototype.css;
 
 // Card version
 const CARD_VERSION = "1.0.8";
 
-// Log card info
-console.info(
-  `%c ALARM-CLOCK-CARD %c ${CARD_VERSION} `,
-  "color: white; background: #3498db; font-weight: bold;",
-  "color: #3498db; background: white; font-weight: bold;"
-);
+// Wrap all initialization in a try-catch to prevent breaking other cards
+(function initAlarmClockCard() {
+  try {
+    // Safely get LitElement with multiple fallback strategies
+    let LitElement, html, css;
 
-// Register card
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "alarm-clock-card",
-  name: "Alarm Clock Card",
-  description: "A card to manage your alarm clocks",
-  preview: true,
-});
+    try {
+      // Primary method: Get from ha-panel-lovelace
+      const panelLovelace = customElements.get("ha-panel-lovelace");
+      if (panelLovelace) {
+        LitElement = Object.getPrototypeOf(panelLovelace);
+        html = LitElement.prototype.html;
+        css = LitElement.prototype.css;
+      }
+    } catch (e) {
+      console.warn("Alarm Clock Card: Could not get LitElement from ha-panel-lovelace, trying fallback");
+    }
+
+    // Fallback: Try to get from other common HA custom elements
+    if (!LitElement) {
+      try {
+        const haCard = customElements.get("ha-card");
+        if (haCard) {
+          LitElement = Object.getPrototypeOf(haCard);
+          html = LitElement.prototype.html;
+          css = LitElement.prototype.css;
+        }
+      } catch (e) {
+        console.warn("Alarm Clock Card: Could not get LitElement from ha-card");
+      }
+    }
+
+    // If we still don't have LitElement, we can't continue
+    if (!LitElement || !html || !css) {
+      console.error(
+        "Alarm Clock Card: Could not initialize - LitElement not available. " +
+        "This card will not be available, but other cards should work fine."
+      );
+      return; // Exit gracefully without breaking other cards
+    }
+
+    // Log card info only after successful initialization
+    console.info(
+      `%c ALARM-CLOCK-CARD %c ${CARD_VERSION} `,
+      "color: white; background: #3498db; font-weight: bold;",
+      "color: #3498db; background: white; font-weight: bold;"
+    );
+
+    // Register card in window.customCards (safe even if called multiple times)
+    if (typeof window.customCards === "undefined") {
+      window.customCards = [];
+    }
+
+    // Check if already registered to avoid duplicates
+    const alreadyRegistered = window.customCards.some(
+      card => card.type === "alarm-clock-card"
+    );
+
+    if (!alreadyRegistered) {
+      window.customCards.push({
+        type: "alarm-clock-card",
+        name: "Alarm Clock Card",
+        description: "A card to manage your alarm clocks",
+        preview: true,
+      });
+    }
 
 class AlarmClockCard extends LitElement {
   static get properties() {
@@ -2106,5 +2153,30 @@ class AlarmClockCardEditor extends LitElement {
   }
 }
 
-customElements.define("alarm-clock-card", AlarmClockCard);
-customElements.define("alarm-clock-card-editor", AlarmClockCardEditor);
+    // Safely define custom elements with double-registration protection
+    if (!customElements.get("alarm-clock-card")) {
+      try {
+        customElements.define("alarm-clock-card", AlarmClockCard);
+      } catch (err) {
+        console.error("Alarm Clock Card: Failed to define alarm-clock-card custom element:", err);
+      }
+    } else {
+      console.warn("Alarm Clock Card: alarm-clock-card already defined, skipping registration");
+    }
+
+    if (!customElements.get("alarm-clock-card-editor")) {
+      try {
+        customElements.define("alarm-clock-card-editor", AlarmClockCardEditor);
+      } catch (err) {
+        console.error("Alarm Clock Card: Failed to define alarm-clock-card-editor custom element:", err);
+      }
+    } else {
+      console.warn("Alarm Clock Card: alarm-clock-card-editor already defined, skipping registration");
+    }
+
+  } catch (err) {
+    // Catch-all error handler to ensure this module never breaks other cards
+    console.error("Alarm Clock Card: Initialization failed:", err);
+    console.error("Other Lovelace cards should continue to work normally.");
+  }
+})(); // Execute the initialization function immediately
