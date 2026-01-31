@@ -416,44 +416,6 @@ def test_entity_base_classes():
     return errors
 
 
-def test_javascript_version():
-    """Test that JavaScript card has version identifier."""
-    errors = []
-    js_files = [
-        Path(__file__).parent.parent
-        / "custom_components"
-        / "alarm_clock"
-        / "alarm-clock-card.js",
-        Path(__file__).parent.parent / "www" / "alarm-clock-card.js",
-    ]
-
-    for js_file in js_files:
-        if not js_file.exists():
-            errors.append(f"{js_file.name} not found")
-            continue
-
-        content = js_file.read_text()
-
-        # Check for version constant
-        if "CARD_VERSION" not in content:
-            errors.append(f"{js_file.name}: Missing CARD_VERSION constant")
-        else:
-            # Extract version
-            version_match = re.search(r'CARD_VERSION\s*=\s*["\']([^"\']+)["\']', content)
-            if version_match:
-                print(f"  {js_file.name}: Version {version_match.group(1)}")
-            else:
-                errors.append(f"{js_file.name}: CARD_VERSION format invalid")
-
-        # Check that removed methods don't exist
-        if "_setViewMode" in content:
-            errors.append(
-                f"{js_file.name}: Found deprecated _setViewMode method (should be removed)"
-            )
-
-    return errors
-
-
 def test_domain_consistency():
     """Test that DOMAIN constant is consistent across files."""
     errors = []
@@ -673,7 +635,6 @@ def main():
         ("Module level imports", test_module_level_imports),
         ("Async method exceptions", test_async_method_exception_handling),
         ("Entity base classes", test_entity_base_classes),
-        ("JavaScript version", test_javascript_version),
         ("Domain consistency", test_domain_consistency),
         ("Service definitions", test_service_definitions),
         ("Config flow exceptions", test_config_flow_exception_handling),
@@ -710,7 +671,6 @@ def main():
         print("  ✓ Module imports at top level")
         print("  ✓ Async methods have exception handling")
         print("  ✓ Entity base classes correct")
-        print("  ✓ JavaScript versioning in place")
         print("  ✓ Domain constants consistent")
         print("  ✓ Service definitions valid")
         print("  ✓ Config flow has exception handling")

@@ -107,41 +107,6 @@ class TestConfigFlow:
             assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
 
 
-class TestVersionSync:
-    """Test version synchronization across files."""
-
-    def test_manifest_version_matches_card(self):
-        """Ensure manifest.json version matches card version."""
-        import json
-
-        # Read manifest version
-        with open("custom_components/alarm_clock/manifest.json") as f:
-            manifest = json.load(f)
-            manifest_version = manifest["version"]
-
-        # Read card version
-        with open("www/alarm-clock-card.js") as f:
-            card_content = f.read()
-            # Extract: const CARD_VERSION = "X.X.X";
-            import re
-            match = re.search(r'const CARD_VERSION = "([^"]+)"', card_content)
-            card_version = match.group(1) if match else None
-
-        assert manifest_version == card_version, \
-            f"Version mismatch: manifest={manifest_version}, card={card_version}"
-
-    def test_card_files_identical(self):
-        """Ensure both card files are identical."""
-        with open("www/alarm-clock-card.js") as f:
-            www_content = f.read()
-
-        with open("custom_components/alarm_clock/alarm-clock-card.js") as f:
-            cc_content = f.read()
-
-        assert www_content == cc_content, \
-            "Card files are not synchronized!"
-
-
 class TestErrorHandling:
     """Test error handling in critical code paths."""
 

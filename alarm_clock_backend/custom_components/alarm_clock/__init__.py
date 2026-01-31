@@ -3,26 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.lovelace.resources import ResourceStorageCollection
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-
-# Try importing StaticPathConfig for HA 2024.6+, fall back for older versions
-try:
-    from homeassistant.components.http import StaticPathConfig
-
-    HAS_STATIC_PATH_CONFIG = True
-except ImportError:
-    HAS_STATIC_PATH_CONFIG = False
 
 from .const import DOMAIN
 from .coordinator import AlarmClockCoordinator
@@ -36,26 +26,6 @@ _LOGGER = logging.getLogger(__name__)
 # Config schema for the integration
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
-
-# Path to the card JavaScript file
-# SINGLE SOURCE OF TRUTH: Read version from manifest.json to prevent version skew
-def _get_version() -> str:
-    """Get version from manifest.json - single source of truth."""
-    try:
-        manifest_path = Path(__file__).parent / "manifest.json"
-        with open(manifest_path, encoding="utf-8") as f:
-            manifest = json.load(f)
-            return manifest.get("version", "unknown")
-    except Exception as err:
-        _LOGGER.warning("Could not read version from manifest.json: %s", err)
-        return "unknown"
-
-
-CARD_VERSION = _get_version()
-CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
-CARD_JS_URL_VERSIONED = f"/{DOMAIN}/alarm-clock-card.js?v={CARD_VERSION}"
-CARD_JS_PATH = Path(__file__).parent / "alarm-clock-card.js"
-
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.SENSOR,
@@ -67,81 +37,13 @@ PLATFORMS: list[Platform] = [
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Alarm Clock component."""
     hass.data.setdefault(DOMAIN, {})
-
-    try:
-        # Register the static path for the card JavaScript file
-        # Use new API (HA 2024.6+) or fall back to old API
-        if HAS_STATIC_PATH_CONFIG:
-            await hass.http.async_register_static_paths(
-                [StaticPathConfig(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)]
-            )
-        else:
-            # Fallback for older Home Assistant versions
-            hass.http.register_static_path(CARD_JS_URL, str(CARD_JS_PATH), cache_headers=False)
-        _LOGGER.debug("Registered static path for alarm clock card: %s", CARD_JS_URL)
-    except Exception as err:
-        _LOGGER.warning("Could not register static path for card: %s", err)
-        # Don't fail setup - the card just won't be available
-
-    try:
-        # Register the Lovelace resource (non-blocking, failures logged but don't stop setup)
-        await _async_register_lovelace_resource(hass)
-    except Exception as err:
-        _LOGGER.warning("Could not register Lovelace resource: %s", err)
-        # Don't fail setup - user can add resource manually
-
+    
+    _LOGGER.info(
+        "Alarm Clock backend integration loaded. "
+        "Install the Alarm Clock Card from HACS for UI support."
+    )
+    
     return True
-
-
-async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
-    """Register the alarm clock card as a Lovelace resource."""
-    resource_url = CARD_JS_URL_VERSIONED
-
-    # Check if lovelace resources component is available
-    if "lovelace" not in hass.data:
-        _LOGGER.debug("Lovelace not yet loaded, will register resource later")
-        # Store flag to register resource when first entry is set up
-        hass.data[DOMAIN]["_register_resource"] = True
-        return
-
-    try:
-        # Get the resources collection
-        lovelace_data = hass.data["lovelace"]
-        resources: ResourceStorageCollection | None = getattr(lovelace_data, "resources", None)
-
-        if resources is None:
-            _LOGGER.debug("Lovelace resources not available (YAML mode?)")
-            return
-
-        # Check if resource is already registered and remove old versions
-        resource_found = False
-        for resource in resources.async_items():
-            url = resource.get("url", "")
-            # Check if this is our resource (with or without version parameter)
-            if url.startswith(CARD_JS_URL):
-                if url == resource_url:
-                    _LOGGER.debug("Alarm clock card resource already registered")
-                    resource_found = True
-                else:
-                    # Remove old version
-                    _LOGGER.debug("Removing old alarm clock card resource: %s", url)
-                    try:
-                        await resources.async_delete_item(resource["id"])
-                    except Exception as del_err:
-                        _LOGGER.warning("Could not remove old resource: %s", del_err)
-
-        if not resource_found:
-            # Register the new resource
-            await resources.async_create_item({"res_type": "module", "url": resource_url})
-            _LOGGER.info("Registered alarm clock card as Lovelace resource: %s", resource_url)
-
-    except Exception as err:
-        _LOGGER.warning("Could not auto-register Lovelace resource: %s", err)
-        _LOGGER.info(
-            "Please manually add the following to your Lovelace resources: "
-            "URL: %s, Type: JavaScript Module",
-            resource_url,
-        )
 
 
 async def _async_cleanup_orphan_entities(
@@ -195,11 +97,6 @@ async def _async_cleanup_orphan_entities(
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Alarm Clock from a config entry."""
     _LOGGER.debug("Setting up Alarm Clock integration: %s", entry.entry_id)
-
-    # Try to register Lovelace resource if not done during async_setup
-    if hass.data[DOMAIN].get("_register_resource"):
-        hass.data[DOMAIN].pop("_register_resource", None)
-        await _async_register_lovelace_resource(hass)
 
     try:
         # Initialize store for persistent data
