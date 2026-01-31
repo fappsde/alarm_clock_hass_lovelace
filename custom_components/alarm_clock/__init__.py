@@ -36,6 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 # Config schema for the integration
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
+
 # Path to the card JavaScript file
 # SINGLE SOURCE OF TRUTH: Read version from manifest.json to prevent version skew
 def _get_version() -> str:
@@ -48,6 +49,7 @@ def _get_version() -> str:
     except Exception as err:
         _LOGGER.warning("Could not read version from manifest.json: %s", err)
         return "unknown"
+
 
 CARD_VERSION = _get_version()
 CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
