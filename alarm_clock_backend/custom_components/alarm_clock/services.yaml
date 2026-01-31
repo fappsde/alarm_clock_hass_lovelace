@@ -1,0 +1,308 @@
+snooze:
+  name: Snooze Alarm
+  description: Snooze a ringing alarm
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity to snooze
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+    duration:
+      name: Duration
+      description: Snooze duration in minutes (optional, uses alarm default if not specified)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+
+dismiss:
+  name: Dismiss Alarm
+  description: Dismiss a ringing or snoozed alarm
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity to dismiss
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+
+skip_next:
+  name: Skip Next Occurrence
+  description: Skip the next occurrence of an alarm
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity to skip
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+
+cancel_skip:
+  name: Cancel Skip
+  description: Cancel the skip for the next occurrence
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+
+test_alarm:
+  name: Test Alarm
+  description: Trigger an alarm for testing purposes
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity to test
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+
+set_time:
+  name: Set Alarm Time
+  description: Set the time for an alarm
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+    alarm_time:
+      name: Time
+      description: The new alarm time (HH:MM format)
+      required: true
+      selector:
+        time:
+
+set_days:
+  name: Set Alarm Days
+  description: Set the days for an alarm to trigger
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+    days:
+      name: Days
+      description: List of days (monday, tuesday, etc.)
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+
+set_scripts:
+  name: Set Alarm Scripts
+  description: Configure scripts for an alarm
+  fields:
+    entity_id:
+      name: Entity
+      description: The alarm entity
+      required: true
+      selector:
+        entity:
+          domain: switch
+          integration: alarm_clock
+    script_pre_alarm:
+      name: Pre-Alarm Script
+      description: Script to run before the alarm (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_alarm:
+      name: Alarm Script
+      description: Main alarm script (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_post_alarm:
+      name: Post-Alarm Script
+      description: Script to run after dismissing the alarm (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_snooze:
+      name: On Snooze Script
+      description: Script to run when alarm is snoozed (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_dismiss:
+      name: On Dismiss Script
+      description: Script to run when alarm is dismissed (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_arm:
+      name: On Arm Script
+      description: Script to run when alarm is armed (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_cancel:
+      name: On Cancel Script
+      description: Script to run when alarm is cancelled (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_on_skip:
+      name: On Skip Script
+      description: Script to run when alarm is skipped (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_fallback:
+      name: Fallback Script
+      description: Fallback script if main script fails (optional)
+      required: false
+      selector:
+        entity:
+          domain: script
+    script_timeout:
+      name: Script Timeout
+      description: Timeout for script execution in seconds (optional)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 300
+          unit_of_measurement: seconds
+    script_retry_count:
+      name: Script Retry Count
+      description: Number of times to retry failed scripts (optional)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10
+
+create_alarm:
+  name: Create Alarm
+  description: Create a new alarm
+  fields:
+    name:
+      name: Name
+      description: Name for the alarm
+      required: true
+      selector:
+        text:
+    time:
+      name: Time
+      description: Alarm time (HH:MM format)
+      required: true
+      selector:
+        time:
+    days:
+      name: Days
+      description: Days for the alarm to trigger
+      required: false
+      default:
+        - monday
+        - tuesday
+        - wednesday
+        - thursday
+        - friday
+      selector:
+        select:
+          multiple: true
+          options:
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+    enabled:
+      name: Enabled
+      description: Whether the alarm is enabled
+      required: false
+      default: true
+      selector:
+        boolean:
+    one_time:
+      name: One-time
+      description: Whether this is a one-time alarm
+      required: false
+      default: false
+      selector:
+        boolean:
+    snooze_duration:
+      name: Snooze Duration
+      description: Snooze duration in minutes
+      required: false
+      default: 9
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+    max_snooze_count:
+      name: Max Snooze Count
+      description: Maximum number of snoozes allowed
+      required: false
+      default: 3
+      selector:
+        number:
+          min: 0
+          max: 10
+    entry_id:
+      name: Entry ID
+      description: The config entry ID of the alarm clock device to create the alarm for (optional)
+      required: false
+      selector:
+        text:
+    use_device_defaults:
+      name: Use Device Defaults
+      description: Use device-level default scripts instead of individual alarm scripts
+      required: false
+      default: true
+      selector:
+        boolean:
+
+delete_alarm:
+  name: Delete Alarm
+  description: Delete an alarm
+  fields:
+    alarm_id:
+      name: Alarm ID
+      description: The ID of the alarm to delete
+      required: true
+      selector:
+        text:

@@ -1,0 +1,172 @@
+name: Frontend Tests
+
+on:
+  push:
+    branches: [main, master, develop, "claude/**"]
+    paths:
+      - "alarm-clock-card.js"
+      - "tests/**"
+      - "package.json"
+      - "vitest.config.js"
+      - ".github/workflows/test-frontend.yml"
+  pull_request:
+    paths:
+      - "alarm-clock-card.js"
+      - "tests/**"
+      - "package.json"
+      - "vitest.config.js"
+      - ".github/workflows/test-frontend.yml"
+  workflow_dispatch:
+
+jobs:
+  frontend-tests:
+    name: Frontend Safety Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify lockfile exists
+        run: test -f package-lock.json || (echo "❌ package-lock.json missing! Run 'npm install' and commit it." && exit 1)
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run version consistency check
+        run: npm run check-versions
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Upload coverage report
+        if: matrix.node-version == 20
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+
+  version-check:
+    name: Version Consistency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify lockfile exists
+        run: test -f package-lock.json || (echo "❌ package-lock.json missing! Run 'npm install' and commit it." && exit 1)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check version consistency
+        run: npm run check-versions
+
+      - name: Verify no version skew
+        run: |
+          # This script ensures version skew is mechanically impossible
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          CARD_VERSION=$(grep -oP 'const CARD_VERSION = "\K[^"]+' alarm-clock-card.js)
+
+          echo "package.json: $PACKAGE_VERSION"
+          echo "alarm-clock-card.js: $CARD_VERSION"
+
+          if [ "$PACKAGE_VERSION" != "$CARD_VERSION" ]; then
+            echo "❌ Version mismatch: alarm-clock-card.js ($CARD_VERSION) != package.json ($PACKAGE_VERSION)"
+            exit 1
+          fi
+
+          echo "✅ All versions match: $PACKAGE_VERSION"
+
+  frontend-poisoning-prevention:
+    name: Frontend Poisoning Prevention Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify lockfile exists
+        run: test -f package-lock.json || (echo "❌ package-lock.json missing! Run 'npm install' and commit it." && exit 1)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run global safety test
+        run: npx vitest run tests/frontend/global-safety.test.js
+
+      - name: Verify safe import patterns
+        run: |
+          # Verify the card uses safe ES module imports
+          if grep -q "Object.getPrototypeOf" alarm-clock-card.js; then
+            echo "❌ UNSAFE: Found Object.getPrototypeOf() usage"
+            exit 1
+          fi
+
+          if grep -q "ha-panel-lovelace" alarm-clock-card.js; then
+            echo "❌ UNSAFE: Found ha-panel-lovelace reference"
+            exit 1
+          fi
+
+          if grep -q 'import.*from.*"lit"' alarm-clock-card.js; then
+            echo "✅ SAFE: Uses proper ES module import from lit"
+          else
+            echo "❌ UNSAFE: Does not use proper ES module import from lit"
+            exit 1
+          fi
+
+          if grep -q 'customElements.get.*before.*customElements.define' alarm-clock-card.js; then
+            echo "✅ SAFE: Has duplicate registration protection"
+          else
+            echo "⚠️  WARNING: May not have duplicate registration protection"
+          fi
+
+  test-summary:
+    name: Frontend Test Summary
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, version-check, frontend-poisoning-prevention]
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.frontend-tests.result }}" != "success" ]; then
+            echo "❌ Frontend tests failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.version-check.result }}" != "success" ]; then
+            echo "❌ Version consistency check failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.frontend-poisoning-prevention.result }}" != "success" ]; then
+            echo "❌ Frontend poisoning prevention test failed"
+            exit 1
+          fi
+
+          echo "✅ All frontend tests passed!"

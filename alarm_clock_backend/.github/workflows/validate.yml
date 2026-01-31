@@ -1,0 +1,59 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Note: HACS validation requires GitHub repository settings (description, topics)
+  # to be configured in the repository settings. These cannot be set via code.
+  # Required settings:
+  # - Repository description: Set in GitHub repo settings
+  # - Repository topics: Add 'home-assistant' and 'hacs' in GitHub repo settings
+
+  validate-hassfest:
+    runs-on: ubuntu-latest
+    name: Hassfest Validation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Hassfest Validation
+        uses: home-assistant/actions/hassfest@master
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Ruff
+        run: ruff check custom_components/
+
+      - name: Check Black formatting
+        run: black --check custom_components/
+
+      - name: Check isort
+        run: isort --check-only custom_components/
