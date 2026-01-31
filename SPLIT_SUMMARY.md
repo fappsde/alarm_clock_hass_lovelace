@@ -57,6 +57,28 @@ Frontend Lovelace card for Home Assistant (JavaScript)
 - `info.md` - Short description for HACS
 - `.github/workflows/` - Frontend CI workflows
   - test-frontend.yml - Frontend tests
+  - release.yml - Release automation ✨ NEW
+  - hacs-validation.yml - HACS validation ✨ NEW
+  - dependabot.yml - NPM dependency updates ✨ UPDATED
+
+**Key Changes:**
+1. Updated package.json name to "alarm-clock-card"
+2. Updated package.json repository URL
+3. Updated vitest.config.js to use local paths
+4. Updated test-frontend.yml workflow paths
+5. Simplified check-versions.js to check package.json vs card file
+6. **Added release workflow for automated GitHub releases** ✨
+7. **Added HACS validation workflow** ✨
+8. **Updated dependabot to use npm instead of pip** ✨
+- `package-lock.json` - Locked dependencies
+- `vitest.config.js` - Test configuration
+- `README.md` - Card-specific documentation
+- `CHANGELOG.md` - Full changelog (shared)
+- `LICENSE` - MIT license (shared)
+- `hacs.json` - HACS plugin type
+- `info.md` - Short description for HACS
+- `.github/workflows/` - Frontend CI workflows
+  - test-frontend.yml - Frontend tests
 
 **Key Changes:**
 1. Updated package.json name to "alarm-clock-card"
@@ -143,6 +165,68 @@ npm test
 - **Backend**: Version in manifest.json is the source of truth
 - **Frontend**: Version in package.json is the source of truth
 - Each repository can have independent versioning going forward
+
+## HACS Essentials - Complete ✅
+
+Both folders now include all necessary HACS essentials for independent operation:
+
+### Release Automation
+**Backend:**
+- `release.yml` workflow creates `alarm_clock.zip` on git tags
+- Automatically updates version in manifest.json
+- Generates changelog from git commits
+- Creates GitHub release with installation instructions
+
+**Frontend:**
+- `release.yml` workflow releases `alarm-clock-card.js` on git tags ✨
+- Automatically updates version in package.json and card JS file ✨
+- Generates changelog from git commits ✨
+- Creates GitHub release with installation instructions ✨
+
+### HACS Validation
+**Backend:**
+- `hacs-validation.yml` validates integration configuration
+- Runs weekly and on-demand
+- Checks for proper structure and required files
+
+**Frontend:**
+- `hacs-validation.yml` validates plugin configuration ✨
+- Runs weekly and on-demand ✨
+- Checks for proper structure and required files ✨
+
+### Dependency Management
+**Backend:**
+- Dependabot configured for Python/pip dependencies
+- Automatic weekly updates for GitHub Actions
+
+**Frontend:**
+- Dependabot configured for NPM dependencies ✨
+- Automatic weekly updates for GitHub Actions ✨
+
+### Package Generation
+**Backend:**
+- Creates `alarm_clock.zip` containing `custom_components/alarm_clock/`
+- Ready for manual installation in Home Assistant
+
+**Frontend:**
+- Releases `alarm-clock-card.js` file directly
+- Ready for manual installation in `www/` folder
+
+### How to Release
+
+**Backend:**
+```bash
+git tag v1.0.9
+git push origin v1.0.9
+# Workflow automatically creates release with alarm_clock.zip
+```
+
+**Frontend:**
+```bash
+git tag v1.0.9
+git push origin v1.0.9
+# Workflow automatically creates release with alarm-clock-card.js
+```
 
 ## Documentation Updates
 
