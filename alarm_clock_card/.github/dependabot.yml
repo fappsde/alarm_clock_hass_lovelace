@@ -12,8 +12,8 @@ updates:
       - "dependencies"
       - "ci"
 
-  # Python dependencies
-  - package-ecosystem: "pip"
+  # NPM dependencies
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -22,13 +22,12 @@ updates:
       prefix: "deps"
     labels:
       - "dependencies"
-      - "python"
+      - "javascript"
     # Group minor/patch updates together
     groups:
       dev-dependencies:
         patterns:
-          - "pytest*"
-          - "ruff"
-          - "black"
-          - "isort"
-          - "mypy"
+          - "vitest*"
+          - "@vitest/*"
+          - "eslint*"
+          - "@web/*"
