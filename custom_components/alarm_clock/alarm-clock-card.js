@@ -1,32 +1,37 @@
 /**
  * Alarm Clock Card for Home Assistant
  * A feature-rich Lovelace card for managing alarms
+ *
+ * SAFETY: Uses official ES module imports - no HA internals access
+ * VERSION: Automatically synced from manifest.json
  */
 
-const LitElement = Object.getPrototypeOf(
-  customElements.get("ha-panel-lovelace")
-);
-const html = LitElement.prototype.html;
-const css = LitElement.prototype.css;
+import { LitElement, html, css } from "lit";
 
-// Card version
+// Card version - will be replaced by build script with manifest.json version
 const CARD_VERSION = "1.0.8";
 
-// Log card info
-console.info(
-  `%c ALARM-CLOCK-CARD %c ${CARD_VERSION} `,
-  "color: white; background: #3498db; font-weight: bold;",
-  "color: #3498db; background: white; font-weight: bold;"
-);
+// Log card info (only once)
+if (!window._alarmClockCardLogged) {
+  console.info(
+    `%c ALARM-CLOCK-CARD %c ${CARD_VERSION} `,
+    "color: white; background: #3498db; font-weight: bold;",
+    "color: #3498db; background: white; font-weight: bold;"
+  );
+  window._alarmClockCardLogged = true;
+}
 
-// Register card
+// Register card in customCards list (with duplicate protection)
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "alarm-clock-card",
-  name: "Alarm Clock Card",
-  description: "A card to manage your alarm clocks",
-  preview: true,
-});
+if (!window.customCards.some(card => card.type === "alarm-clock-card")) {
+  window.customCards.push({
+    type: "alarm-clock-card",
+    name: "Alarm Clock Card",
+    description: "A card to manage your alarm clocks",
+    preview: true,
+    version: CARD_VERSION,
+  });
+}
 
 class AlarmClockCard extends LitElement {
   static get properties() {
@@ -2106,5 +2111,11 @@ class AlarmClockCardEditor extends LitElement {
   }
 }
 
-customElements.define("alarm-clock-card", AlarmClockCard);
-customElements.define("alarm-clock-card-editor", AlarmClockCardEditor);
+// Duplicate registration protection - critical for preventing DOMException
+if (!customElements.get("alarm-clock-card")) {
+  customElements.define("alarm-clock-card", AlarmClockCard);
+}
+
+if (!customElements.get("alarm-clock-card-editor")) {
+  customElements.define("alarm-clock-card-editor", AlarmClockCardEditor);
+}

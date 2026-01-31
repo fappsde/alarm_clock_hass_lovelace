@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -36,7 +37,19 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 # Path to the card JavaScript file
-CARD_VERSION = "1.0.4"
+# SINGLE SOURCE OF TRUTH: Read version from manifest.json to prevent version skew
+def _get_version() -> str:
+    """Get version from manifest.json - single source of truth."""
+    try:
+        manifest_path = Path(__file__).parent / "manifest.json"
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+            return manifest.get("version", "unknown")
+    except Exception as err:
+        _LOGGER.warning("Could not read version from manifest.json: %s", err)
+        return "unknown"
+
+CARD_VERSION = _get_version()
 CARD_JS_URL = f"/{DOMAIN}/alarm-clock-card.js"
 CARD_JS_URL_VERSIONED = f"/{DOMAIN}/alarm-clock-card.js?v={CARD_VERSION}"
 CARD_JS_PATH = Path(__file__).parent / "alarm-clock-card.js"
