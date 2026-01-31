@@ -1,14 +1,14 @@
 {
-  "name": "alarm-clock-hass-lovelace",
+  "name": "alarm-clock-card",
   "version": "1.0.8",
-  "description": "Alarm Clock integration for Home Assistant with Lovelace card",
+  "description": "Alarm Clock Lovelace card for Home Assistant",
   "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint custom_components/alarm_clock/alarm-clock-card.js",
-    "check-versions": "node tests/frontend/check-versions.js"
+    "lint": "eslint alarm-clock-card.js",
+    "check-versions": "node tests/check-versions.js"
   },
   "devDependencies": {
     "@vitest/ui": "^1.2.0",
@@ -27,7 +27,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/fappsde/alarm_clock_hass_lovelace.git"
+    "url": "https://github.com/fappsde/alarm_clock_card.git"
   },
   "keywords": [
     "home-assistant",

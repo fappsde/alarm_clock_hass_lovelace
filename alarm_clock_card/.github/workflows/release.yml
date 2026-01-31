@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Create Release
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in package.json
+        run: |
+          sed -i 's/"version": "[^"]*"/"version": "${{ steps.get_version.outputs.VERSION }}"/' package.json
+
+      - name: Update version in card
+        run: |
+          sed -i 's/const CARD_VERSION = "[^"]*"/const CARD_VERSION = "${{ steps.get_version.outputs.VERSION }}"/' alarm-clock-card.js
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --oneline $PREVIOUS_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --oneline)
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Installation
+
+            ### HACS (Recommended)
+            1. Open HACS in Home Assistant
+            2. Go to "Frontend"
+            3. Click the three dots in the top right corner
+            4. Select "Custom repositories"
+            5. Add this repository URL
+            6. Select "Lovelace" as the category
+            7. Install "Alarm Clock Card"
+
+            ### Manual Installation
+            1. Download `alarm-clock-card.js` from this release
+            2. Copy to `www/` folder in your Home Assistant config directory
+            3. Add the card resource in Lovelace configuration
+            4. Refresh your browser (Ctrl+Shift+R)
+          files: |
+            alarm-clock-card.js
+          draft: false
+          prerelease: false

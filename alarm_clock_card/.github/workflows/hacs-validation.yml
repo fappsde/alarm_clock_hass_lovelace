@@ -1,0 +1,38 @@
+name: HACS Validation (Optional)
+
+# This workflow validates HACS compatibility
+# It requires GitHub repository settings to be configured first:
+# 1. Add a repository description in Settings
+# 2. Add topics: 'home-assistant' and 'hacs' in Settings -> Topics
+# 3. Ensure hacs.json is properly configured
+
+on:
+  workflow_dispatch:  # Manual trigger only
+  schedule:
+    - cron: "0 0 * * 0"  # Weekly on Sunday
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: HACS Validation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: HACS Validation
+        uses: hacs/action@main
+        with:
+          category: plugin
+          ignore: brands
+
+      - name: Validation Summary
+        if: failure()
+        run: |
+          echo "::warning::HACS validation failed. Please ensure:"
+          echo "::warning::1. Repository has a description set in GitHub settings"
+          echo "::warning::2. Repository has topics 'home-assistant' and 'hacs' set"
+          echo "::warning::3. hacs.json file is properly formatted"
+          echo "::warning::4. alarm-clock-card.js file exists in root"

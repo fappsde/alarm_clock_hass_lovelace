@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Create Release
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in manifest
+        run: |
+          sed -i 's/"version": "[^"]*"/"version": "${{ steps.get_version.outputs.VERSION }}"/' custom_components/alarm_clock/manifest.json
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --oneline $PREVIOUS_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --oneline)
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create zip file
+        run: |
+          cd custom_components
+          zip -r ../alarm_clock.zip alarm_clock
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Installation
+
+            ### HACS (Recommended)
+            1. Open HACS in Home Assistant
+            2. Go to "Integrations"
+            3. Click the three dots in the top right corner
+            4. Select "Custom repositories"
+            5. Add this repository URL
+            6. Select "Integration" as the category
+            7. Install "Alarm Clock"
+
+            ### Manual Installation
+            1. Download `alarm_clock.zip` from this release
+            2. Extract to `custom_components/alarm_clock` in your Home Assistant config directory
+            3. Restart Home Assistant
+          files: |
+            alarm_clock.zip
+          draft: false
+          prerelease: false

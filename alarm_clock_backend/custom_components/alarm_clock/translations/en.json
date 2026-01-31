@@ -1,0 +1,308 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Alarm Clock",
+        "description": "Set up an Alarm Clock instance. You can add multiple alarms after setup.",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "invalid_time": "Invalid time format. Use HH:MM."
+    },
+    "abort": {
+      "already_configured": "This alarm clock is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alarm Clock Options",
+        "description": "Manage your alarms and settings.",
+        "menu_options": {
+          "add_alarm": "Add New Alarm",
+          "manage_alarms": "Manage Existing Alarms",
+          "default_scripts": "Configure Default Scripts",
+          "global_settings": "Global Settings"
+        }
+      },
+      "add_alarm": {
+        "title": "Add New Alarm",
+        "description": "Configure a new alarm.",
+        "data": {
+          "name": "Alarm Name",
+          "time": "Alarm Time",
+          "days": "Days",
+          "one_time": "One-time Alarm",
+          "enabled": "Enabled"
+        }
+      },
+      "alarm_advanced": {
+        "title": "Advanced Alarm Settings",
+        "description": "Configure advanced settings for the alarm.",
+        "data": {
+          "snooze_duration": "Snooze Duration (minutes)",
+          "max_snooze_count": "Maximum Snoozes",
+          "auto_dismiss_timeout": "Auto-dismiss Timeout (minutes)",
+          "pre_alarm_duration": "Pre-alarm Duration (minutes)",
+          "use_device_defaults": "Use Device Defaults",
+          "script_pre_alarm": "Pre-alarm Script",
+          "script_alarm": "Alarm Script",
+          "script_post_alarm": "Post-alarm Script",
+          "script_on_snooze": "On Snooze Script",
+          "script_on_dismiss": "On Dismiss Script",
+          "script_fallback": "Fallback Script",
+          "script_timeout": "Script Timeout (seconds)",
+          "script_retry_count": "Script Retry Count"
+        }
+      },
+      "manage_alarms": {
+        "title": "Manage Alarms",
+        "description": "Select an alarm to manage.",
+        "data": {
+          "alarm": "Select Alarm"
+        }
+      },
+      "alarm_actions": {
+        "title": "Alarm Actions",
+        "description": "Choose an action for this alarm.",
+        "data": {
+          "action": "Action"
+        }
+      },
+      "edit_alarm": {
+        "title": "Edit Alarm",
+        "description": "Modify alarm settings.",
+        "data": {
+          "name": "Alarm Name",
+          "time": "Alarm Time",
+          "days": "Days",
+          "snooze_duration": "Snooze Duration (minutes)",
+          "max_snooze_count": "Maximum Snoozes",
+          "auto_dismiss_timeout": "Auto-dismiss Timeout (minutes)",
+          "pre_alarm_duration": "Pre-alarm Duration (minutes)"
+        }
+      },
+      "default_scripts": {
+        "title": "Default Scripts",
+        "description": "Configure default scripts that will be used by all alarms with 'Use Device Defaults' enabled.",
+        "data": {
+          "default_script_pre_alarm": "Pre-alarm Script",
+          "default_script_alarm": "Alarm Script",
+          "default_script_post_alarm": "Post-alarm Script",
+          "default_script_on_snooze": "On Snooze Script",
+          "default_script_on_dismiss": "On Dismiss Script",
+          "default_script_on_arm": "On Arm Script",
+          "default_script_on_cancel": "On Cancel Script",
+          "default_script_on_skip": "On Skip Script",
+          "default_script_fallback": "Fallback Script",
+          "default_script_timeout": "Script Timeout (seconds)",
+          "default_script_retry_count": "Script Retry Count"
+        }
+      },
+      "global_settings": {
+        "title": "Global Settings",
+        "description": "Configure global alarm clock settings.",
+        "data": {
+          "watchdog_timeout": "Watchdog Timeout (seconds)",
+          "missed_alarm_grace_period": "Missed Alarm Grace Period (minutes)"
+        }
+      }
+    },
+    "abort": {
+      "no_alarms": "No alarms configured. Add an alarm first.",
+      "alarm_not_found": "Alarm not found.",
+      "add_alarm_failed": "Failed to add alarm.",
+      "remove_alarm_failed": "Failed to remove alarm.",
+      "update_alarm_failed": "Failed to update alarm."
+    },
+    "error": {
+      "invalid_name": "Invalid alarm name.",
+      "invalid_time": "Invalid time format. Use HH:MM.",
+      "invalid_value": "Invalid value."
+    }
+  },
+  "entity": {
+    "switch": {
+      "alarm_enable": {
+        "name": "{name}"
+      },
+      "alarm_skip_next": {
+        "name": "{name} Skip Next"
+      }
+    },
+    "sensor": {
+      "alarm_state": {
+        "name": "{name} State",
+        "state": {
+          "disabled": "Disabled",
+          "armed": "Armed",
+          "pre_alarm": "Pre-alarm",
+          "ringing": "Ringing",
+          "snoozed": "Snoozed",
+          "dismissed": "Dismissed",
+          "auto_dismissed": "Auto-dismissed",
+          "missed": "Missed"
+        }
+      },
+      "alarm_next_trigger": {
+        "name": "{name} Next Trigger"
+      },
+      "alarm_snooze_count": {
+        "name": "{name} Snooze Count"
+      },
+      "next_alarm": {
+        "name": "Next Alarm"
+      },
+      "active_alarm_count": {
+        "name": "Active Alarms"
+      }
+    },
+    "binary_sensor": {
+      "alarm_ringing": {
+        "name": "{name} Ringing"
+      },
+      "health": {
+        "name": "Health"
+      },
+      "any_alarm_ringing": {
+        "name": "Any Alarm Ringing"
+      }
+    },
+    "time": {
+      "alarm_time": {
+        "name": "{name} Time"
+      }
+    }
+  },
+  "services": {
+    "snooze": {
+      "name": "Snooze Alarm",
+      "description": "Snooze a ringing alarm.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity to snooze."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Snooze duration in minutes."
+        }
+      }
+    },
+    "dismiss": {
+      "name": "Dismiss Alarm",
+      "description": "Dismiss a ringing or snoozed alarm.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity to dismiss."
+        }
+      }
+    },
+    "skip_next": {
+      "name": "Skip Next Occurrence",
+      "description": "Skip the next occurrence of an alarm.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity to skip."
+        }
+      }
+    },
+    "cancel_skip": {
+      "name": "Cancel Skip",
+      "description": "Cancel the skip for the next occurrence.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity."
+        }
+      }
+    },
+    "test_alarm": {
+      "name": "Test Alarm",
+      "description": "Trigger an alarm for testing purposes.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity to test."
+        }
+      }
+    },
+    "set_time": {
+      "name": "Set Alarm Time",
+      "description": "Set the time for an alarm.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity."
+        },
+        "alarm_time": {
+          "name": "Time",
+          "description": "The new alarm time."
+        }
+      }
+    },
+    "set_days": {
+      "name": "Set Alarm Days",
+      "description": "Set the days for an alarm to trigger.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "The alarm entity."
+        },
+        "days": {
+          "name": "Days",
+          "description": "List of days."
+        }
+      }
+    },
+    "create_alarm": {
+      "name": "Create Alarm",
+      "description": "Create a new alarm.",
+      "fields": {
+        "name": {
+          "name": "Name",
+          "description": "Name for the alarm."
+        },
+        "time": {
+          "name": "Time",
+          "description": "Alarm time."
+        },
+        "days": {
+          "name": "Days",
+          "description": "Days for the alarm."
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Whether the alarm is enabled."
+        },
+        "one_time": {
+          "name": "One-time",
+          "description": "Whether this is a one-time alarm."
+        },
+        "snooze_duration": {
+          "name": "Snooze Duration",
+          "description": "Snooze duration in minutes."
+        },
+        "max_snooze_count": {
+          "name": "Max Snooze Count",
+          "description": "Maximum number of snoozes."
+        }
+      }
+    },
+    "delete_alarm": {
+      "name": "Delete Alarm",
+      "description": "Delete an alarm.",
+      "fields": {
+        "alarm_id": {
+          "name": "Alarm ID",
+          "description": "The ID of the alarm to delete."
+        }
+      }
+    }
+  }
+}

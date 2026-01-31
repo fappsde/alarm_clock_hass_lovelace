@@ -1,0 +1,182 @@
+"""Switch entities for Alarm Clock integration."""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any
+
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN, AlarmState
+from .entity import AlarmClockEntity
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+
+    from .coordinator import AlarmClockCoordinator
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up alarm clock switches."""
+    coordinator: AlarmClockCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    entities = []
+
+    # Create enable/disable switch for each alarm
+    for _alarm_id, alarm in coordinator.alarms.items():
+        entities.append(AlarmEnableSwitch(coordinator, entry, alarm))
+
+        # Create skip next switch
+        entities.append(AlarmSkipNextSwitch(coordinator, entry, alarm))
+
+    async_add_entities(entities)
+
+    # Register callback for dynamically adding entities when new alarms are created
+    def add_alarm_entities(alarm_id: str) -> None:
+        """Add entities for a new alarm with safety check."""
+        # Safety check: ensure alarm still exists (prevents race condition)
+        if alarm_id not in coordinator.alarms:
+            _LOGGER.warning(
+                "Skipping entity creation for alarm %s - alarm no longer exists",
+                alarm_id,
+            )
+            return
+        alarm = coordinator.alarms[alarm_id]
+        async_add_entities(
+            [
+                AlarmEnableSwitch(coordinator, entry, alarm),
+                AlarmSkipNextSwitch(coordinator, entry, alarm),
+            ]
+        )
+
+    coordinator.register_entity_adder_callback(add_alarm_entities)
+
+
+class AlarmEnableSwitch(AlarmClockEntity, SwitchEntity):
+    """Switch to enable/disable an alarm."""
+
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_icon = "mdi:alarm"
+
+    def __init__(self, coordinator, entry, alarm) -> None:
+        """Initialize the switch."""
+        super().__init__(coordinator, entry, alarm)
+        self._attr_unique_id = f"{entry.entry_id}_{alarm.data.alarm_id}_enable"
+        self._attr_name = f"{alarm.data.name}"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if alarm is enabled."""
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return alarm.data.enabled
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on state."""
+        alarm = self.alarm
+        if alarm is None:
+            return "mdi:alarm-off"
+        if alarm.state == AlarmState.RINGING:
+            return "mdi:alarm-light"
+        elif alarm.state == AlarmState.SNOOZED:
+            return "mdi:alarm-snooze"
+        elif alarm.state == AlarmState.PRE_ALARM:
+            return "mdi:alarm-note"
+        elif alarm.data.enabled:
+            return "mdi:alarm"
+        return "mdi:alarm-off"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        alarm = self.alarm
+        if alarm is None:
+            return {"entry_id": self.entry.entry_id}
+
+        # Get script information from coordinator
+        scripts_info = self.coordinator.get_alarm_scripts_info(alarm)
+
+        return {
+            "alarm_id": alarm.data.alarm_id,
+            "alarm_name": alarm.data.name,
+            "alarm_time": alarm.data.time,
+            "alarm_state": alarm.state.value,
+            "days": alarm.data.days,
+            "one_time": alarm.data.one_time,
+            "skip_next": alarm.data.skip_next,
+            "snooze_count": alarm.snooze_count,
+            "max_snooze_count": alarm.data.max_snooze_count,
+            "next_trigger": (alarm.next_trigger.isoformat() if alarm.next_trigger else None),
+            "snooze_end_time": (
+                alarm.snooze_end_time.isoformat() if alarm.snooze_end_time else None
+            ),
+            "entry_id": self.entry.entry_id,
+            "use_device_defaults": scripts_info["use_device_defaults"],
+            "script_pre_alarm": scripts_info["script_pre_alarm"],
+            "script_alarm": scripts_info["script_alarm"],
+            "script_post_alarm": scripts_info["script_post_alarm"],
+            "script_on_snooze": scripts_info["script_on_snooze"],
+            "script_on_dismiss": scripts_info["script_on_dismiss"],
+            "script_on_arm": scripts_info["script_on_arm"],
+            "script_on_cancel": scripts_info["script_on_cancel"],
+            "script_on_skip": scripts_info["script_on_skip"],
+            "script_fallback": scripts_info["script_fallback"],
+            "script_timeout": scripts_info["script_timeout"],
+            "script_retry_count": scripts_info["script_retry_count"],
+        }
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable the alarm."""
+        await self.coordinator.async_set_enabled(self.alarm_id, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable the alarm."""
+        await self.coordinator.async_set_enabled(self.alarm_id, False)
+
+
+class AlarmSkipNextSwitch(AlarmClockEntity, SwitchEntity):
+    """Switch to skip the next occurrence of an alarm."""
+
+    _attr_device_class = SwitchDeviceClass.SWITCH
+    _attr_icon = "mdi:debug-step-over"
+
+    def __init__(self, coordinator, entry, alarm) -> None:
+        """Initialize the switch."""
+        super().__init__(coordinator, entry, alarm)
+        self._attr_unique_id = f"{entry.entry_id}_{alarm.data.alarm_id}_skip_next"
+        self._attr_name = f"{alarm.data.name} Skip Next"
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if skip next is enabled."""
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return alarm.data.skip_next
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        # Only available when alarm is enabled
+        alarm = self.alarm
+        if alarm is None:
+            return False
+        return super().available and alarm.data.enabled
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable skip next."""
+        await self.coordinator.async_skip_next(self.alarm_id)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable skip next."""
+        await self.coordinator.async_cancel_skip(self.alarm_id)
