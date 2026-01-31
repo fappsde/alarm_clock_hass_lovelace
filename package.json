@@ -1,6 +1,6 @@
 {
   "name": "alarm-clock-hass-lovelace",
-  "version": "1.0.9",
+  "version": "1.0.8",
   "description": "Alarm Clock integration for Home Assistant with Lovelace card",
   "type": "module",
   "scripts": {

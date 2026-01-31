@@ -9,7 +9,7 @@
 import { LitElement, html, css } from "lit";
 
 // Card version - will be replaced by build script with manifest.json version
-const CARD_VERSION = "1.0.9";
+const CARD_VERSION = "1.0.8";
 
 // Log card info (only once)
 if (!window._alarmClockCardLogged) {
@@ -34,10 +34,6 @@ if (!window.customCards.some(card => card.type === "alarm-clock-card")) {
 }
 
 class AlarmClockCard extends LitElement {
-  static get type() {
-    return "alarm-clock-card";
-  }
-
   static get properties() {
     return {
       hass: { type: Object },
