@@ -93,28 +93,15 @@ A robust, feature-rich alarm clock integration for Home Assistant with a beautif
 
 ### Adding the Lovelace Card
 
-The card is automatically registered as a Lovelace resource when the integration is installed. After installation:
-
-1. Go to your Lovelace dashboard
-2. Click "Edit Dashboard" → "Add Card"
-3. Search for "Alarm Clock Card" in the card picker
-4. Select it and configure
-
-If the card doesn't appear in the card picker, you can manually add the resource:
+Add the card resource (if not auto-discovered):
 
 ```yaml
-# In configuration.yaml (for YAML mode Lovelace)
+# In configuration.yaml or via UI
 lovelace:
   resources:
-    - url: /alarm_clock/alarm-clock-card.js?v=1.0.8
+    - url: /local/alarm-clock-card.js
       type: module
 ```
-
-Or via the Home Assistant UI:
-1. Go to **Settings** → **Dashboards** → **Resources**
-2. Click **Add Resource**
-3. URL: `/alarm_clock/alarm-clock-card.js`
-4. Type: **JavaScript Module**
 
 Add the card to your dashboard:
 

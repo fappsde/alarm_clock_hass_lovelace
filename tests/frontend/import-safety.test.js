@@ -60,19 +60,6 @@ describe('Import Safety Test', () => {
     expect(customElements.get('alarm-clock-card-editor')).toBeDefined();
   });
 
-  it('should have static type() method for card discovery', () => {
-    // CRITICAL: Home Assistant's card picker requires static get type()
-    // This method is essential for card discovery in the "Add Card" UI
-    const cardClass = customElements.get('alarm-clock-card');
-    expect(cardClass).toBeDefined();
-    
-    // Verify the type getter exists and returns correct value
-    expect(cardClass.type).toBe('alarm-clock-card');
-    
-    // Alternative check: Verify it's a function that returns the type
-    expect(typeof Object.getOwnPropertyDescriptor(cardClass, 'type')?.get).toBe('function');
-  });
-
   it('should use standard ES module import from lit', async () => {
     // Verify the module is using safe imports
     // This is tested by successfully importing it
